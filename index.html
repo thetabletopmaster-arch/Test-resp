@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Forest - Find Them Before It Finds You</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+
+        #gameCanvas {
+            display: block;
+        }
+
+        #ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+        }
+
+        #cameraViewfinder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 200px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            display: none;
+        }
+
+        #cameraViewfinder::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #cameraViewfinder::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #cameraViewfinder .corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+        }
+
+        #cameraViewfinder .corner.tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+        #cameraViewfinder .corner.tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+        #cameraViewfinder .corner.bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+        #cameraViewfinder .corner.br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+        #bodiesCount {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        #stamina {
+            position: absolute;
+            bottom: 60px;
+            left: 30px;
+            width: 150px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #staminaBar {
+            height: 100%;
+            background: rgba(255, 255, 255, 0.6);
+            width: 100%;
+            transition: width 0.1s;
+        }
+
+        #flashEffect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+        }
+
+        #damageEffect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 30%, rgba(139, 0, 0, 0.6) 100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 40%, rgba(0, 0, 0, 0.8) 100%);
+            pointer-events: none;
+        }
+
+        #warning {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #8b0000;
+            font-size: 24px;
+            opacity: 0;
+            text-shadow: 0 0 20px #8b0000;
+            letter-spacing: 8px;
+        }
+
+        #photoIndicator {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        #compass {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+        }
+
+        #exitMarker {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(100, 200, 100, 0.6);
+            font-size: 14px;
+            display: none;
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            cursor: pointer;
+        }
+
+        #startScreen h1 {
+            color: #fff;
+            font-size: 48px;
+            margin-bottom: 20px;
+            letter-spacing: 15px;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        #startScreen p {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            margin: 10px 0;
+            letter-spacing: 3px;
+        }
+
+        #startScreen .controls {
+            margin-top: 40px;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 12px;
+            text-align: center;
+            line-height: 2;
+        }
+
+        #startScreen .click-start {
+            margin-top: 60px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 16px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 0.2; }
+        }
+
+        #gameOverScreen, #winScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        #gameOverScreen h1 {
+            color: #8b0000;
+            font-size: 64px;
+            letter-spacing: 20px;
+            margin-bottom: 30px;
+        }
+
+        #winScreen h1 {
+            color: #4a7c4e;
+            font-size: 48px;
+            letter-spacing: 15px;
+            margin-bottom: 30px;
+        }
+
+        #gameOverScreen p, #winScreen p {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #staticNoise {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            pointer-events: none;
+            background-image: url('data:image/svg+xml,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noise)"/></svg>');
+        }
+
+        #heartbeat {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 50%, rgba(139, 0, 0, 0.15) 100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.1),
+                rgba(0, 0, 0, 0.1) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <h1>THE FOREST</h1>
+        <p>Find them before it finds you</p>
+        <div class="controls">
+            WASD - Move<br>
+            SHIFT - Run<br>
+            MOUSE - Look<br>
+            RIGHT CLICK - Raise Camera<br>
+            LEFT CLICK - Take Photo<br>
+            F - Toggle Flashlight
+        </div>
+        <p class="click-start">Click to begin</p>
+    </div>
+
+    <div id="gameOverScreen">
+        <h1>DEAD</h1>
+        <p>Click to try again</p>
+    </div>
+
+    <div id="winScreen">
+        <h1>YOU ESCAPED</h1>
+        <p>Click to play again</p>
+    </div>
+
+    <div id="ui">
+        <div id="crosshair"></div>
+        <div id="cameraViewfinder">
+            <div class="corner tl"></div>
+            <div class="corner tr"></div>
+            <div class="corner bl"></div>
+            <div class="corner br"></div>
+        </div>
+        <div id="bodiesCount">BODIES: 0/4</div>
+        <div id="stamina"><div id="staminaBar"></div></div>
+        <div id="photoIndicator">[RMB] Camera</div>
+        <div id="compass">N</div>
+        <div id="exitMarker">EXIT NEARBY</div>
+        <div id="flashEffect"></div>
+        <div id="damageEffect"></div>
+        <div id="heartbeat"></div>
+        <div id="vignette"></div>
+        <div id="warning">IT SEES YOU</div>
+        <div id="staticNoise"></div>
+        <div class="scanlines"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Game State
+        const GAME_STATE = {
+            MENU: 0,
+            PLAYING: 1,
+            DEAD: 2,
+            WON: 3
+        };
+
+        let gameState = GAME_STATE.MENU;
+        let bodiesFound = 0;
+        let health = 100;
+        let stamina = 100;
+        let isRunning = false;
+        let isCameraUp = false;
+        let flashlightOn = true;
+        let canTakePhoto = true;
+        let photoTimer = 0;
+
+        // Three.js Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0a);
+        scene.fog = new THREE.FogExp2(0x0a0a0a, 0.025);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.7, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.3;
+        document.body.insertBefore(renderer.domElement, document.body.firstChild);
+        renderer.domElement.id = 'gameCanvas';
+
+        // Audio Context
+        let audioContext;
+        let ambienceGain;
+        let heartbeatOsc;
+        let isAudioInitialized = false;
+
+        function initAudio() {
+            if (isAudioInitialized) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            ambienceGain = audioContext.createGain();
+            ambienceGain.gain.value = 0.1;
+            ambienceGain.connect(audioContext.destination);
+            isAudioInitialized = true;
+            playAmbience();
+        }
+
+        function playAmbience() {
+            if (!audioContext) return;
+
+            // Wind noise
+            const windBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 4, audioContext.sampleRate);
+            const windData = windBuffer.getChannelData(0);
+            for (let i = 0; i < windData.length; i++) {
+                windData[i] = (Math.random() * 2 - 1) * 0.3;
+            }
+
+            const windSource = audioContext.createBufferSource();
+            windSource.buffer = windBuffer;
+            windSource.loop = true;
+
+            const windFilter = audioContext.createBiquadFilter();
+            windFilter.type = 'lowpass';
+            windFilter.frequency.value = 200;
+
+            windSource.connect(windFilter);
+            windFilter.connect(ambienceGain);
+            windSource.start();
+        }
+
+        function playHeartbeat(intensity) {
+            if (!audioContext) return;
+
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.frequency.value = 40 + intensity * 20;
+            osc.type = 'sine';
+
+            gain.gain.setValueAtTime(0, audioContext.currentTime);
+            gain.gain.linearRampToValueAtTime(0.2 * intensity, audioContext.currentTime + 0.05);
+            gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.2);
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.3);
+        }
+
+        function playCameraSound() {
+            if (!audioContext) return;
+
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.frequency.value = 800;
+            osc.type = 'square';
+
+            gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.1);
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.1);
+        }
+
+        function playCreatureSound(type) {
+            if (!audioContext) return;
+
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            const filter = audioContext.createBiquadFilter();
+
+            if (type === 'growl') {
+                osc.frequency.value = 60;
+                osc.type = 'sawtooth';
+                filter.type = 'lowpass';
+                filter.frequency.value = 150;
+                gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1.5);
+                osc.connect(filter);
+                filter.connect(gain);
+            } else if (type === 'scream') {
+                osc.frequency.value = 200;
+                osc.type = 'sawtooth';
+                filter.type = 'bandpass';
+                filter.frequency.value = 400;
+                filter.Q.value = 5;
+                gain.gain.setValueAtTime(0.5, audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.8);
+                osc.connect(filter);
+                filter.connect(gain);
+            }
+
+            gain.connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + 2);
+        }
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x111122, 0.3);
+        scene.add(ambientLight);
+
+        const moonLight = new THREE.DirectionalLight(0x4466aa, 0.2);
+        moonLight.position.set(50, 100, 50);
+        scene.add(moonLight);
+
+        // Flashlight
+        const flashlight = new THREE.SpotLight(0xffffee, 2, 30, Math.PI / 6, 0.5, 1.5);
+        flashlight.castShadow = true;
+        flashlight.shadow.mapSize.width = 1024;
+        flashlight.shadow.mapSize.height = 1024;
+        camera.add(flashlight);
+        flashlight.position.set(0, 0, 0);
+        flashlight.target.position.set(0, 0, -1);
+        camera.add(flashlight.target);
+        scene.add(camera);
+
+        // Ground
+        const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x1a1510,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+
+        // Add some terrain variation
+        const vertices = groundGeometry.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            vertices[i + 2] += (Math.random() - 0.5) * 0.5;
+        }
+        groundGeometry.computeVertexNormals();
+
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Trees
+        const trees = [];
+        const treePositions = [];
+
+        function createTree(x, z) {
+            const group = new THREE.Group();
+
+            // Trunk
+            const trunkHeight = 8 + Math.random() * 6;
+            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.4, trunkHeight, 8);
+            const trunkMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2a1f1a,
+                roughness: 0.9
+            });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = trunkHeight / 2;
+            trunk.castShadow = true;
+            group.add(trunk);
+
+            // Branches
+            const branchCount = 3 + Math.floor(Math.random() * 4);
+            for (let i = 0; i < branchCount; i++) {
+                const branchGeometry = new THREE.CylinderGeometry(0.05, 0.15, 2 + Math.random() * 2, 6);
+                const branch = new THREE.Mesh(branchGeometry, trunkMaterial);
+                branch.position.y = trunkHeight * 0.5 + Math.random() * trunkHeight * 0.4;
+                branch.position.x = (Math.random() - 0.5) * 0.5;
+                branch.position.z = (Math.random() - 0.5) * 0.5;
+                branch.rotation.z = (Math.random() - 0.5) * 1.5;
+                branch.rotation.x = (Math.random() - 0.5) * 1.5;
+                branch.castShadow = true;
+                group.add(branch);
+            }
+
+            // Dead leaves/canopy (sparse)
+            if (Math.random() > 0.3) {
+                const canopyGeometry = new THREE.SphereGeometry(1.5 + Math.random(), 8, 6);
+                const canopyMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x1a2a1a,
+                    roughness: 1,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
+                canopy.position.y = trunkHeight - 1;
+                canopy.scale.y = 0.6;
+                group.add(canopy);
+            }
+
+            group.position.set(x, 0, z);
+            group.rotation.y = Math.random() * Math.PI * 2;
+
+            return group;
+        }
+
+        // Generate forest
+        const FOREST_RADIUS = 80;
+        const TREE_COUNT = 400;
+
+        for (let i = 0; i < TREE_COUNT; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 10 + Math.random() * (FOREST_RADIUS - 10);
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+
+            // Check minimum distance from other trees
+            let tooClose = false;
+            for (const pos of treePositions) {
+                const dist = Math.sqrt((x - pos.x) ** 2 + (z - pos.z) ** 2);
+                if (dist < 2) {
+                    tooClose = true;
+                    break;
+                }
+            }
+
+            if (!tooClose) {
+                const tree = createTree(x, z);
+                trees.push(tree);
+                treePositions.push({ x, z, radius: 0.5 });
+                scene.add(tree);
+            }
+        }
+
+        // Bodies
+        const bodies = [];
+        const bodyPositions = [
+            { x: 30, z: 30 },
+            { x: -40, z: 20 },
+            { x: 25, z: -45 },
+            { x: -35, z: -35 }
+        ];
+
+        function createBody(x, z) {
+            const group = new THREE.Group();
+
+            // Torso
+            const torsoGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.8);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3a3a4a,
+                roughness: 0.8
+            });
+            const torso = new THREE.Mesh(torsoGeometry, bodyMaterial);
+            torso.position.y = 0.15;
+            group.add(torso);
+
+            // Head
+            const headGeometry = new THREE.SphereGeometry(0.15, 8, 6);
+            const head = new THREE.Mesh(headGeometry, bodyMaterial);
+            head.position.set(0, 0.15, 0.5);
+            group.add(head);
+
+            // Limbs
+            const limbGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 6);
+
+            const arm1 = new THREE.Mesh(limbGeometry, bodyMaterial);
+            arm1.position.set(0.35, 0.15, 0.2);
+            arm1.rotation.z = Math.PI / 2 + 0.3;
+            group.add(arm1);
+
+            const arm2 = new THREE.Mesh(limbGeometry, bodyMaterial);
+            arm2.position.set(-0.35, 0.15, 0);
+            arm2.rotation.z = -Math.PI / 2 - 0.2;
+            group.add(arm2);
+
+            const leg1 = new THREE.Mesh(limbGeometry, bodyMaterial);
+            leg1.position.set(0.15, 0.1, -0.4);
+            leg1.rotation.x = Math.PI / 2 + 0.1;
+            group.add(leg1);
+
+            const leg2 = new THREE.Mesh(limbGeometry, bodyMaterial);
+            leg2.position.set(-0.15, 0.1, -0.5);
+            leg2.rotation.x = Math.PI / 2 - 0.2;
+            group.add(leg2);
+
+            group.position.set(x, 0, z);
+            group.rotation.y = Math.random() * Math.PI * 2;
+            group.userData.found = false;
+
+            return group;
+        }
+
+        bodyPositions.forEach(pos => {
+            const body = createBody(pos.x, pos.z);
+            bodies.push(body);
+            scene.add(body);
+        });
+
+        // Exit zone
+        const exitPosition = { x: 0, z: -FOREST_RADIUS - 5 };
+        const exitGeometry = new THREE.BoxGeometry(10, 0.1, 10);
+        const exitMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2a4a2a,
+            transparent: true,
+            opacity: 0.3
+        });
+        const exitZone = new THREE.Mesh(exitGeometry, exitMaterial);
+        exitZone.position.set(exitPosition.x, 0.05, exitPosition.z);
+        scene.add(exitZone);
+
+        // Exit marker posts
+        for (let i = 0; i < 2; i++) {
+            const postGeometry = new THREE.CylinderGeometry(0.1, 0.1, 3, 8);
+            const postMaterial = new THREE.MeshStandardMaterial({ color: 0x4a3a2a });
+            const post = new THREE.Mesh(postGeometry, postMaterial);
+            post.position.set(exitPosition.x + (i === 0 ? -5 : 5), 1.5, exitPosition.z + 5);
+            scene.add(post);
+        }
+
+        // THE CREATURE
+        let creature;
+        let creatureState = 'search'; // 'search', 'attack', 'flee'
+        let creatureTarget = new THREE.Vector3();
+        let creatureFleeTimer = 0;
+        let lastSeenPlayer = new THREE.Vector3();
+        let creatureAlertness = 0;
+
+        function createCreature() {
+            const group = new THREE.Group();
+
+            const creatureMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a1a1a,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+
+            // Tall thin body
+            const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.5, 4, 8);
+            const body = new THREE.Mesh(bodyGeometry, creatureMaterial);
+            body.position.y = 3;
+            group.add(body);
+
+            // Hunched upper body
+            const upperGeometry = new THREE.SphereGeometry(0.6, 8, 6);
+            const upper = new THREE.Mesh(upperGeometry, creatureMaterial);
+            upper.position.y = 5.2;
+            upper.scale.set(1, 1.3, 0.8);
+            group.add(upper);
+
+            // Head - elongated and wrong
+            const headGeometry = new THREE.SphereGeometry(0.4, 8, 6);
+            const head = new THREE.Mesh(headGeometry, creatureMaterial);
+            head.position.set(0, 5.8, 0.3);
+            head.scale.set(0.8, 1.2, 1);
+            group.add(head);
+
+            // Eyes - glowing
+            const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xaa2222 });
+            const eyeGeometry = new THREE.SphereGeometry(0.08, 6, 6);
+
+            const eye1 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye1.position.set(0.12, 5.9, 0.6);
+            group.add(eye1);
+
+            const eye2 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye2.position.set(-0.12, 5.9, 0.6);
+            group.add(eye2);
+
+            // Long arms
+            const armGeometry = new THREE.CylinderGeometry(0.08, 0.12, 3, 6);
+
+            const arm1 = new THREE.Mesh(armGeometry, creatureMaterial);
+            arm1.position.set(0.7, 4, 0);
+            arm1.rotation.z = -0.3;
+            arm1.rotation.x = 0.2;
+            group.add(arm1);
+
+            const arm2 = new THREE.Mesh(armGeometry, creatureMaterial);
+            arm2.position.set(-0.7, 4, 0);
+            arm2.rotation.z = 0.3;
+            arm2.rotation.x = 0.2;
+            group.add(arm2);
+
+            // Claws/hands
+            const clawGeometry = new THREE.ConeGeometry(0.15, 0.4, 6);
+
+            const claw1 = new THREE.Mesh(clawGeometry, creatureMaterial);
+            claw1.position.set(1, 2.6, 0.3);
+            claw1.rotation.x = Math.PI;
+            group.add(claw1);
+
+            const claw2 = new THREE.Mesh(clawGeometry, creatureMaterial);
+            claw2.position.set(-1, 2.6, 0.3);
+            claw2.rotation.x = Math.PI;
+            group.add(claw2);
+
+            // Thin legs
+            const legGeometry = new THREE.CylinderGeometry(0.1, 0.15, 2, 6);
+
+            const leg1 = new THREE.Mesh(legGeometry, creatureMaterial);
+            leg1.position.set(0.25, 1, 0);
+            group.add(leg1);
+
+            const leg2 = new THREE.Mesh(legGeometry, creatureMaterial);
+            leg2.position.set(-0.25, 1, 0);
+            group.add(leg2);
+
+            // Spawn far from player
+            const spawnAngle = Math.random() * Math.PI * 2;
+            const spawnRadius = 50 + Math.random() * 20;
+            group.position.set(
+                Math.cos(spawnAngle) * spawnRadius,
+                0,
+                Math.sin(spawnAngle) * spawnRadius
+            );
+
+            group.userData.animTime = 0;
+
+            return group;
+        }
+
+        creature = createCreature();
+        scene.add(creature);
+
+        // Fog particles
+        const fogParticles = [];
+        const fogGeometry = new THREE.SphereGeometry(0.5, 4, 4);
+        const fogMaterial = new THREE.MeshBasicMaterial({
+            color: 0x222233,
+            transparent: true,
+            opacity: 0.1
+        });
+
+        for (let i = 0; i < 100; i++) {
+            const fog = new THREE.Mesh(fogGeometry, fogMaterial);
+            fog.position.set(
+                (Math.random() - 0.5) * 150,
+                Math.random() * 3,
+                (Math.random() - 0.5) * 150
+            );
+            fog.userData.speed = 0.2 + Math.random() * 0.3;
+            fog.userData.offset = Math.random() * Math.PI * 2;
+            fogParticles.push(fog);
+            scene.add(fog);
+        }
+
+        // Player movement
+        const keys = {};
+        const playerVelocity = new THREE.Vector3();
+        let playerYaw = 0;
+        let playerPitch = 0;
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key.toLowerCase() === 'f' && gameState === GAME_STATE.PLAYING) {
+                flashlightOn = !flashlightOn;
+                flashlight.intensity = flashlightOn ? 2 : 0;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (gameState !== GAME_STATE.PLAYING) return;
+            if (document.pointerLockElement !== renderer.domElement) return;
+
+            playerYaw -= e.movementX * 0.002;
+            playerPitch -= e.movementY * 0.002;
+            playerPitch = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, playerPitch));
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (gameState !== GAME_STATE.PLAYING) return;
+
+            if (e.button === 2) { // Right click
+                isCameraUp = true;
+                document.getElementById('cameraViewfinder').style.display = 'block';
+                document.getElementById('crosshair').style.display = 'none';
+            } else if (e.button === 0 && isCameraUp && canTakePhoto) { // Left click while camera is up
+                takePhoto();
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 2) {
+                isCameraUp = false;
+                document.getElementById('cameraViewfinder').style.display = 'none';
+                document.getElementById('crosshair').style.display = 'block';
+            }
+        });
+
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        function takePhoto() {
+            canTakePhoto = false;
+            photoTimer = 1.5;
+
+            playCameraSound();
+
+            // Flash effect
+            const flash = document.getElementById('flashEffect');
+            flash.style.opacity = '1';
+            setTimeout(() => { flash.style.opacity = '0'; }, 100);
+
+            // Check if creature is in view
+            const creatureDir = new THREE.Vector3();
+            creatureDir.subVectors(creature.position, camera.position);
+            const distance = creatureDir.length();
+            creatureDir.normalize();
+
+            const cameraDir = new THREE.Vector3(0, 0, -1);
+            cameraDir.applyQuaternion(camera.quaternion);
+
+            const dot = cameraDir.dot(creatureDir);
+
+            // If creature is in front and within range
+            if (dot > 0.7 && distance < 25) {
+                // Creature was photographed! It flees
+                creatureState = 'flee';
+                creatureFleeTimer = 8 + Math.random() * 4;
+
+                // Set flee direction (away from player)
+                const fleeDir = new THREE.Vector3();
+                fleeDir.subVectors(creature.position, camera.position);
+                fleeDir.y = 0;
+                fleeDir.normalize();
+                fleeDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * Math.PI);
+
+                creatureTarget.copy(creature.position).add(fleeDir.multiplyScalar(60));
+
+                playCreatureSound('scream');
+            }
+
+            // Check for bodies in view
+            bodies.forEach(body => {
+                if (body.userData.found) return;
+
+                const bodyDir = new THREE.Vector3();
+                bodyDir.subVectors(body.position, camera.position);
+                const bodyDist = bodyDir.length();
+                bodyDir.normalize();
+
+                const bodyDot = cameraDir.dot(bodyDir);
+
+                if (bodyDot > 0.8 && bodyDist < 10) {
+                    body.userData.found = true;
+                    bodiesFound++;
+                    document.getElementById('bodiesCount').textContent = `BODIES: ${bodiesFound}/4`;
+
+                    // Visual feedback
+                    body.children.forEach(child => {
+                        if (child.material) {
+                            child.material.emissive = new THREE.Color(0x222244);
+                            child.material.emissiveIntensity = 0.3;
+                        }
+                    });
+                }
+            });
+        }
+
+        function updateCreature(delta) {
+            if (gameState !== GAME_STATE.PLAYING) return;
+
+            const playerPos = camera.position.clone();
+            playerPos.y = 0;
+            const creaturePos = creature.position.clone();
+            creaturePos.y = 0;
+
+            const distToPlayer = playerPos.distanceTo(creaturePos);
+
+            // Animation
+            creature.userData.animTime += delta;
+            const animTime = creature.userData.animTime;
+            creature.position.y = Math.sin(animTime * 3) * 0.1;
+            creature.children.forEach((child, i) => {
+                if (i > 5) { // Arms
+                    child.rotation.x = Math.sin(animTime * 4 + i) * 0.2;
+                }
+            });
+
+            // State machine
+            switch (creatureState) {
+                case 'search':
+                    // Wander around
+                    if (creatureTarget.length() === 0 || creaturePos.distanceTo(creatureTarget) < 3) {
+                        // Pick new random target
+                        const angle = Math.random() * Math.PI * 2;
+                        const radius = 20 + Math.random() * 40;
+                        creatureTarget.set(
+                            Math.cos(angle) * radius,
+                            0,
+                            Math.sin(angle) * radius
+                        );
+                    }
+
+                    // Move toward target
+                    const searchDir = new THREE.Vector3();
+                    searchDir.subVectors(creatureTarget, creaturePos);
+                    searchDir.y = 0;
+                    searchDir.normalize();
+
+                    creature.position.x += searchDir.x * 3 * delta;
+                    creature.position.z += searchDir.z * 3 * delta;
+
+                    // Face direction
+                    creature.rotation.y = Math.atan2(searchDir.x, searchDir.z);
+
+                    // Check if player is seen
+                    if (distToPlayer < 30) {
+                        // Raycast to check line of sight
+                        const toPlayer = new THREE.Vector3();
+                        toPlayer.subVectors(playerPos, creaturePos).normalize();
+
+                        // Simple visibility check - if close enough and flashlight on
+                        const isVisible = flashlightOn || distToPlayer < 8;
+
+                        if (isVisible) {
+                            creatureAlertness += delta * (30 - distToPlayer) * 0.1;
+
+                            if (creatureAlertness > 1) {
+                                creatureState = 'attack';
+                                playCreatureSound('growl');
+                            }
+                        }
+                    } else {
+                        creatureAlertness = Math.max(0, creatureAlertness - delta * 0.5);
+                    }
+                    break;
+
+                case 'attack':
+                    // Chase player
+                    const attackDir = new THREE.Vector3();
+                    attackDir.subVectors(playerPos, creaturePos);
+                    attackDir.y = 0;
+                    attackDir.normalize();
+
+                    const attackSpeed = 6 + (isRunning ? 0 : 2);
+                    creature.position.x += attackDir.x * attackSpeed * delta;
+                    creature.position.z += attackDir.z * attackSpeed * delta;
+
+                    creature.rotation.y = Math.atan2(attackDir.x, attackDir.z);
+
+                    lastSeenPlayer.copy(playerPos);
+
+                    // Attack if close enough
+                    if (distToPlayer < 1.5) {
+                        health -= 50 * delta;
+                        document.getElementById('damageEffect').style.opacity = 0.5;
+
+                        if (health <= 0) {
+                            gameState = GAME_STATE.DEAD;
+                            document.exitPointerLock();
+                            document.getElementById('gameOverScreen').style.display = 'flex';
+                        }
+                    } else {
+                        document.getElementById('damageEffect').style.opacity = Math.max(0,
+                            parseFloat(document.getElementById('damageEffect').style.opacity) - delta);
+                    }
+
+                    // Lose player if too far
+                    if (distToPlayer > 50) {
+                        creatureState = 'search';
+                        creatureAlertness = 0;
+                        creatureTarget.copy(lastSeenPlayer);
+                    }
+                    break;
+
+                case 'flee':
+                    creatureFleeTimer -= delta;
+
+                    // Run away
+                    const fleeDir = new THREE.Vector3();
+                    fleeDir.subVectors(creatureTarget, creaturePos);
+                    fleeDir.y = 0;
+
+                    if (fleeDir.length() > 1) {
+                        fleeDir.normalize();
+                        creature.position.x += fleeDir.x * 10 * delta;
+                        creature.position.z += fleeDir.z * 10 * delta;
+                        creature.rotation.y = Math.atan2(fleeDir.x, fleeDir.z);
+                    }
+
+                    if (creatureFleeTimer <= 0) {
+                        creatureState = 'search';
+                        creatureAlertness = 0;
+                    }
+                    break;
+            }
+
+            // Keep creature in bounds
+            const creatureDist = Math.sqrt(creature.position.x ** 2 + creature.position.z ** 2);
+            if (creatureDist > FOREST_RADIUS) {
+                const angle = Math.atan2(creature.position.z, creature.position.x);
+                creature.position.x = Math.cos(angle) * FOREST_RADIUS;
+                creature.position.z = Math.sin(angle) * FOREST_RADIUS;
+            }
+
+            // UI feedback
+            const warning = document.getElementById('warning');
+            const heartbeat = document.getElementById('heartbeat');
+
+            if (creatureState === 'attack') {
+                warning.style.opacity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
+                heartbeat.style.opacity = 0.3 + Math.sin(Date.now() * 0.008) * 0.2;
+
+                if (Math.random() < 0.02) {
+                    playHeartbeat(1);
+                }
+            } else if (distToPlayer < 20 && creatureState === 'search') {
+                const intensity = 1 - distToPlayer / 20;
+                heartbeat.style.opacity = intensity * 0.2;
+                warning.style.opacity = 0;
+
+                if (Math.random() < 0.01 * intensity) {
+                    playHeartbeat(intensity);
+                }
+            } else {
+                warning.style.opacity = 0;
+                heartbeat.style.opacity = 0;
+            }
+        }
+
+        function updatePlayer(delta) {
+            if (gameState !== GAME_STATE.PLAYING) return;
+
+            // Apply rotation
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = playerYaw;
+            camera.rotation.x = playerPitch;
+
+            // Movement
+            const moveSpeed = isRunning ? 6 : 3;
+            const forward = new THREE.Vector3(0, 0, -1);
+            const right = new THREE.Vector3(1, 0, 0);
+
+            forward.applyQuaternion(camera.quaternion);
+            right.applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            right.y = 0;
+            forward.normalize();
+            right.normalize();
+
+            playerVelocity.set(0, 0, 0);
+
+            if (keys['w']) playerVelocity.add(forward);
+            if (keys['s']) playerVelocity.sub(forward);
+            if (keys['a']) playerVelocity.sub(right);
+            if (keys['d']) playerVelocity.add(right);
+
+            if (playerVelocity.length() > 0) {
+                playerVelocity.normalize();
+
+                isRunning = keys['shift'] && stamina > 0;
+
+                if (isRunning) {
+                    stamina = Math.max(0, stamina - 30 * delta);
+                }
+
+                playerVelocity.multiplyScalar(moveSpeed * delta);
+
+                // Collision detection with trees
+                const newPos = camera.position.clone().add(playerVelocity);
+                let canMove = true;
+
+                for (const tree of treePositions) {
+                    const dist = Math.sqrt((newPos.x - tree.x) ** 2 + (newPos.z - tree.z) ** 2);
+                    if (dist < tree.radius + 0.3) {
+                        canMove = false;
+                        break;
+                    }
+                }
+
+                // Stay in bounds
+                const playerDist = Math.sqrt(newPos.x ** 2 + newPos.z ** 2);
+                if (playerDist > FOREST_RADIUS + 15) {
+                    canMove = false;
+                }
+
+                if (canMove) {
+                    camera.position.add(playerVelocity);
+                }
+            } else {
+                isRunning = false;
+            }
+
+            // Stamina recovery
+            if (!isRunning) {
+                stamina = Math.min(100, stamina + 15 * delta);
+            }
+
+            document.getElementById('staminaBar').style.width = stamina + '%';
+
+            // Camera height bob
+            if (playerVelocity.length() > 0) {
+                camera.position.y = 1.7 + Math.sin(Date.now() * 0.01 * (isRunning ? 1.5 : 1)) * 0.05;
+            }
+
+            // Photo cooldown
+            if (!canTakePhoto) {
+                photoTimer -= delta;
+                if (photoTimer <= 0) {
+                    canTakePhoto = true;
+                }
+            }
+
+            // Check exit
+            const exitDist = Math.sqrt(
+                (camera.position.x - exitPosition.x) ** 2 +
+                (camera.position.z - exitPosition.z) ** 2
+            );
+
+            if (bodiesFound >= 4) {
+                document.getElementById('exitMarker').style.display = 'block';
+
+                if (exitDist < 7) {
+                    gameState = GAME_STATE.WON;
+                    document.exitPointerLock();
+                    document.getElementById('winScreen').style.display = 'flex';
+                }
+            } else {
+                document.getElementById('exitMarker').style.display = 'none';
+            }
+
+            // Compass
+            const compassDir = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            const angle = ((-playerYaw * 180 / Math.PI) % 360 + 360) % 360;
+            const compassIndex = Math.round(angle / 45) % 8;
+            document.getElementById('compass').textContent = compassDir[compassIndex];
+        }
+
+        // Animation loop
+        let lastTime = 0;
+
+        function animate(currentTime) {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min((currentTime - lastTime) / 1000, 0.1);
+            lastTime = currentTime;
+
+            if (gameState === GAME_STATE.PLAYING) {
+                updatePlayer(delta);
+                updateCreature(delta);
+
+                // Animate fog
+                fogParticles.forEach(fog => {
+                    fog.position.x += Math.sin(currentTime * 0.0005 + fog.userData.offset) * fog.userData.speed * delta;
+                    fog.position.z += Math.cos(currentTime * 0.0003 + fog.userData.offset) * fog.userData.speed * delta;
+                    fog.material.opacity = 0.05 + Math.sin(currentTime * 0.001 + fog.userData.offset) * 0.03;
+                });
+
+                // Subtle camera shake when creature is close
+                const distToCreature = camera.position.distanceTo(creature.position);
+                if (distToCreature < 15) {
+                    const shakeIntensity = (15 - distToCreature) / 15 * 0.003;
+                    camera.rotation.x += (Math.random() - 0.5) * shakeIntensity;
+                    camera.rotation.y += (Math.random() - 0.5) * shakeIntensity;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Start screen
+        document.getElementById('startScreen').addEventListener('click', () => {
+            if (gameState !== GAME_STATE.MENU) return;
+
+            initAudio();
+            gameState = GAME_STATE.PLAYING;
+            document.getElementById('startScreen').style.display = 'none';
+            renderer.domElement.requestPointerLock();
+        });
+
+        // Game over screen
+        document.getElementById('gameOverScreen').addEventListener('click', () => {
+            location.reload();
+        });
+
+        // Win screen
+        document.getElementById('winScreen').addEventListener('click', () => {
+            location.reload();
+        });
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Pointer lock change
+        document.addEventListener('pointerlockchange', () => {
+            if (document.pointerLockElement !== renderer.domElement && gameState === GAME_STATE.PLAYING) {
+                // Optionally pause game
+            }
+        });
+
+        animate(0);
+    </script>
+</body>
+</html>
