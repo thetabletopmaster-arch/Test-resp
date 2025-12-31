@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Forest - Find Them Before It Finds You</title>
+    <title>The Desert - Find Them Before It Finds You</title>
     <style>
         * {
             margin: 0;
@@ -304,11 +304,111 @@
             pointer-events: none;
             opacity: 0.3;
         }
+
+        /* JUMPSCARE STYLES */
+        #jumpscareContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2000;
+            display: none;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #jumpscareFace {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100vmax;
+            height: 100vmax;
+        }
+
+        #jumpscareGlitch {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            animation: glitchBg 0.1s infinite;
+        }
+
+        @keyframes glitchBg {
+            0% { background: rgba(255, 0, 0, 0.1); transform: translate(0); }
+            25% { background: rgba(0, 255, 255, 0.1); transform: translate(-5px, 5px); }
+            50% { background: rgba(255, 0, 255, 0.1); transform: translate(5px, -5px); }
+            75% { background: rgba(255, 255, 0, 0.1); transform: translate(-5px, -5px); }
+            100% { background: rgba(255, 0, 0, 0.1); transform: translate(5px, 5px); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+            10% { transform: translate(-48%, -52%) rotate(-3deg) scale(1.05); }
+            20% { transform: translate(-52%, -48%) rotate(3deg) scale(0.95); }
+            30% { transform: translate(-48%, -48%) rotate(-2deg) scale(1.1); }
+            40% { transform: translate(-52%, -52%) rotate(2deg) scale(0.9); }
+            50% { transform: translate(-50%, -50%) rotate(-4deg) scale(1.15); }
+            60% { transform: translate(-48%, -52%) rotate(4deg) scale(0.85); }
+            70% { transform: translate(-52%, -48%) rotate(-3deg) scale(1.1); }
+            80% { transform: translate(-48%, -48%) rotate(3deg) scale(0.95); }
+            90% { transform: translate(-52%, -52%) rotate(-2deg) scale(1.05); }
+        }
+
+        .jumpscare-active #jumpscareFace {
+            animation: shake 0.1s infinite;
+        }
+
+        #jumpscareStatic {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.3;
+            mix-blend-mode: overlay;
+            pointer-events: none;
+        }
+
+        #chromatic {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .chromatic-active {
+            animation: chromaticPulse 0.05s infinite;
+        }
+
+        @keyframes chromaticPulse {
+            0% { opacity: 0.8; filter: hue-rotate(0deg); }
+            33% { opacity: 0.6; filter: hue-rotate(120deg); }
+            66% { opacity: 0.9; filter: hue-rotate(240deg); }
+            100% { opacity: 0.7; filter: hue-rotate(360deg); }
+        }
+
+        #bloodOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(80,0,0,0.3) 0%, rgba(30,0,0,0.8) 100%);
+            pointer-events: none;
+            opacity: 0;
+        }
     </style>
 </head>
 <body>
     <div id="startScreen">
-        <h1>THE FOREST</h1>
+        <h1>THE DESERT</h1>
         <p>Find them before it finds you</p>
         <div class="controls">
             WASD - Move<br>
@@ -331,6 +431,15 @@
         <p>Click to play again</p>
     </div>
 
+    <!-- JUMPSCARE -->
+    <div id="jumpscareContainer">
+        <canvas id="jumpscareFace"></canvas>
+        <div id="jumpscareGlitch"></div>
+        <canvas id="jumpscareStatic"></canvas>
+        <div id="chromatic"></div>
+        <div id="bloodOverlay"></div>
+    </div>
+
     <div id="ui">
         <div id="crosshair"></div>
         <div id="cameraViewfinder">
@@ -351,6 +460,7 @@
         <div id="warning">IT SEES YOU</div>
         <div id="staticNoise"></div>
         <div class="scanlines"></div>
+        <div id="bloodOverlay"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -359,8 +469,9 @@
         const GAME_STATE = {
             MENU: 0,
             PLAYING: 1,
-            DEAD: 2,
-            WON: 3
+            JUMPSCARE: 2,
+            DEAD: 3,
+            WON: 4
         };
 
         let gameState = GAME_STATE.MENU;
@@ -375,8 +486,8 @@
 
         // Three.js Setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0a0a);
-        scene.fog = new THREE.FogExp2(0x0a0a0a, 0.025);
+        scene.background = new THREE.Color(0x0a0808);
+        scene.fog = new THREE.FogExp2(0x1a1008, 0.018);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 1.7, 0);
@@ -386,21 +497,20 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.3;
+        renderer.toneMappingExposure = 0.25;
         document.body.insertBefore(renderer.domElement, document.body.firstChild);
         renderer.domElement.id = 'gameCanvas';
 
         // Audio Context
         let audioContext;
         let ambienceGain;
-        let heartbeatOsc;
         let isAudioInitialized = false;
 
         function initAudio() {
             if (isAudioInitialized) return;
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             ambienceGain = audioContext.createGain();
-            ambienceGain.gain.value = 0.1;
+            ambienceGain.gain.value = 0.15;
             ambienceGain.connect(audioContext.destination);
             isAudioInitialized = true;
             playAmbience();
@@ -409,11 +519,11 @@
         function playAmbience() {
             if (!audioContext) return;
 
-            // Wind noise
+            // Desert wind noise
             const windBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 4, audioContext.sampleRate);
             const windData = windBuffer.getChannelData(0);
             for (let i = 0; i < windData.length; i++) {
-                windData[i] = (Math.random() * 2 - 1) * 0.3;
+                windData[i] = (Math.random() * 2 - 1) * 0.4;
             }
 
             const windSource = audioContext.createBufferSource();
@@ -422,10 +532,15 @@
 
             const windFilter = audioContext.createBiquadFilter();
             windFilter.type = 'lowpass';
-            windFilter.frequency.value = 200;
+            windFilter.frequency.value = 300;
+
+            const windFilter2 = audioContext.createBiquadFilter();
+            windFilter2.type = 'highpass';
+            windFilter2.frequency.value = 80;
 
             windSource.connect(windFilter);
-            windFilter.connect(ambienceGain);
+            windFilter.connect(windFilter2);
+            windFilter2.connect(ambienceGain);
             windSource.start();
         }
 
@@ -439,14 +554,14 @@
             osc.type = 'sine';
 
             gain.gain.setValueAtTime(0, audioContext.currentTime);
-            gain.gain.linearRampToValueAtTime(0.2 * intensity, audioContext.currentTime + 0.05);
-            gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.2);
+            gain.gain.linearRampToValueAtTime(0.3 * intensity, audioContext.currentTime + 0.05);
+            gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.25);
 
             osc.connect(gain);
             gain.connect(audioContext.destination);
 
             osc.start();
-            osc.stop(audioContext.currentTime + 0.3);
+            osc.stop(audioContext.currentTime + 0.35);
         }
 
         function playCameraSound() {
@@ -471,20 +586,27 @@
         function playCreatureSound(type) {
             if (!audioContext) return;
 
-            const osc = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            const filter = audioContext.createBiquadFilter();
-
             if (type === 'growl') {
-                osc.frequency.value = 60;
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                const filter = audioContext.createBiquadFilter();
+
+                osc.frequency.value = 50;
                 osc.type = 'sawtooth';
                 filter.type = 'lowpass';
-                filter.frequency.value = 150;
-                gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                filter.frequency.value = 120;
+                gain.gain.setValueAtTime(0.4, audioContext.currentTime);
                 gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1.5);
                 osc.connect(filter);
                 filter.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.start();
+                osc.stop(audioContext.currentTime + 2);
             } else if (type === 'scream') {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                const filter = audioContext.createBiquadFilter();
+
                 osc.frequency.value = 200;
                 osc.type = 'sawtooth';
                 filter.type = 'bandpass';
@@ -494,23 +616,129 @@
                 gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.8);
                 osc.connect(filter);
                 filter.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.start();
+                osc.stop(audioContext.currentTime + 2);
             }
+        }
 
-            gain.connect(audioContext.destination);
-            osc.start();
-            osc.stop(audioContext.currentTime + 2);
+        // JUMPSCARE AUDIO - TERRIFYING
+        function playJumpscareSound() {
+            if (!audioContext) return;
+
+            // Layer 1: Deep demonic roar
+            const roar = audioContext.createOscillator();
+            const roarGain = audioContext.createGain();
+            const roarFilter = audioContext.createBiquadFilter();
+            roar.type = 'sawtooth';
+            roar.frequency.setValueAtTime(60, audioContext.currentTime);
+            roar.frequency.linearRampToValueAtTime(30, audioContext.currentTime + 1);
+            roarFilter.type = 'lowpass';
+            roarFilter.frequency.value = 200;
+            roarGain.gain.setValueAtTime(1, audioContext.currentTime);
+            roarGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1.5);
+            roar.connect(roarFilter);
+            roarFilter.connect(roarGain);
+            roarGain.connect(audioContext.destination);
+            roar.start();
+            roar.stop(audioContext.currentTime + 1.5);
+
+            // Layer 2: High pitched shriek
+            const shriek = audioContext.createOscillator();
+            const shriekGain = audioContext.createGain();
+            shriek.type = 'square';
+            shriek.frequency.setValueAtTime(800, audioContext.currentTime);
+            shriek.frequency.exponentialRampToValueAtTime(2000, audioContext.currentTime + 0.1);
+            shriek.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
+            shriekGain.gain.setValueAtTime(0.8, audioContext.currentTime);
+            shriekGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.8);
+            shriek.connect(shriekGain);
+            shriekGain.connect(audioContext.destination);
+            shriek.start();
+            shriek.stop(audioContext.currentTime + 0.8);
+
+            // Layer 3: Distorted noise burst
+            const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 1.5, audioContext.sampleRate);
+            const noiseData = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < noiseData.length; i++) {
+                noiseData[i] = (Math.random() * 2 - 1) * (1 - i / noiseData.length);
+            }
+            const noise = audioContext.createBufferSource();
+            noise.buffer = noiseBuffer;
+            const noiseGain = audioContext.createGain();
+            const noiseFilter = audioContext.createBiquadFilter();
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.value = 1000;
+            noiseFilter.Q.value = 1;
+            noiseGain.gain.setValueAtTime(0.7, audioContext.currentTime);
+            noiseGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1.2);
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(audioContext.destination);
+            noise.start();
+
+            // Layer 4: Sub bass hit
+            const sub = audioContext.createOscillator();
+            const subGain = audioContext.createGain();
+            sub.type = 'sine';
+            sub.frequency.value = 25;
+            subGain.gain.setValueAtTime(1, audioContext.currentTime);
+            subGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+            sub.connect(subGain);
+            subGain.connect(audioContext.destination);
+            sub.start();
+            sub.stop(audioContext.currentTime + 1);
+
+            // Layer 5: Metallic screech
+            const screech = audioContext.createOscillator();
+            const screechGain = audioContext.createGain();
+            const screechFilter = audioContext.createBiquadFilter();
+            screech.type = 'sawtooth';
+            screech.frequency.setValueAtTime(3000, audioContext.currentTime);
+            screech.frequency.linearRampToValueAtTime(1500, audioContext.currentTime + 0.3);
+            screechFilter.type = 'highpass';
+            screechFilter.frequency.value = 1000;
+            screechGain.gain.setValueAtTime(0.4, audioContext.currentTime);
+            screechGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+            screech.connect(screechFilter);
+            screechFilter.connect(screechGain);
+            screechGain.connect(audioContext.destination);
+            screech.start();
+            screech.stop(audioContext.currentTime + 0.5);
+
+            // Layer 6: Breath/whisper
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const whisper = audioContext.createOscillator();
+                    const whisperGain = audioContext.createGain();
+                    const whisperFilter = audioContext.createBiquadFilter();
+                    whisper.type = 'sawtooth';
+                    whisper.frequency.value = 100 + Math.random() * 50;
+                    whisperFilter.type = 'bandpass';
+                    whisperFilter.frequency.value = 500;
+                    whisperFilter.Q.value = 10;
+                    whisperGain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    whisperGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.3);
+                    whisper.connect(whisperFilter);
+                    whisperFilter.connect(whisperGain);
+                    whisperGain.connect(audioContext.destination);
+                    whisper.start();
+                    whisper.stop(audioContext.currentTime + 0.3);
+                }, i * 200);
+            }
         }
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0x111122, 0.3);
+        const ambientLight = new THREE.AmbientLight(0x221111, 0.2);
         scene.add(ambientLight);
 
-        const moonLight = new THREE.DirectionalLight(0x4466aa, 0.2);
+        // Blood moon
+        const moonLight = new THREE.DirectionalLight(0x883333, 0.15);
         moonLight.position.set(50, 100, 50);
         scene.add(moonLight);
 
         // Flashlight
-        const flashlight = new THREE.SpotLight(0xffffee, 2, 30, Math.PI / 6, 0.5, 1.5);
+        const flashlight = new THREE.SpotLight(0xffeecc, 2.5, 35, Math.PI / 6, 0.5, 1.5);
         flashlight.castShadow = true;
         flashlight.shadow.mapSize.width = 1024;
         flashlight.shadow.mapSize.height = 1024;
@@ -520,18 +748,24 @@
         camera.add(flashlight.target);
         scene.add(camera);
 
-        // Ground
-        const groundGeometry = new THREE.PlaneGeometry(200, 200, 100, 100);
+        // Desert Ground
+        const groundGeometry = new THREE.PlaneGeometry(250, 250, 150, 150);
         const groundMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1a1510,
-            roughness: 0.9,
-            metalness: 0.1
+            color: 0x8B7355,
+            roughness: 1,
+            metalness: 0
         });
 
-        // Add some terrain variation
+        // Sand dunes - more pronounced height variation
         const vertices = groundGeometry.attributes.position.array;
         for (let i = 0; i < vertices.length; i += 3) {
-            vertices[i + 2] += (Math.random() - 0.5) * 0.5;
+            const x = vertices[i];
+            const y = vertices[i + 1];
+            // Create dune-like patterns
+            vertices[i + 2] =
+                Math.sin(x * 0.05) * Math.cos(y * 0.03) * 2 +
+                Math.sin(x * 0.1 + y * 0.1) * 1 +
+                (Math.random() - 0.5) * 0.3;
         }
         groundGeometry.computeVertexNormals();
 
@@ -540,106 +774,210 @@
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Trees
-        const trees = [];
-        const treePositions = [];
+        // Desert obstacles (cacti, dead trees, rocks, skulls)
+        const obstacles = [];
+        const obstaclePositions = [];
 
-        function createTree(x, z) {
+        function createCactus(x, z) {
             const group = new THREE.Group();
-
-            // Trunk
-            const trunkHeight = 8 + Math.random() * 6;
-            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.4, trunkHeight, 8);
-            const trunkMaterial = new THREE.MeshStandardMaterial({
-                color: 0x2a1f1a,
-                roughness: 0.9
+            const cactusMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2d4a2d,
+                roughness: 0.8
             });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.y = trunkHeight / 2;
+
+            // Main trunk
+            const height = 2 + Math.random() * 3;
+            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.3, height, 8);
+            const trunk = new THREE.Mesh(trunkGeometry, cactusMaterial);
+            trunk.position.y = height / 2;
             trunk.castShadow = true;
             group.add(trunk);
 
-            // Branches
-            const branchCount = 3 + Math.floor(Math.random() * 4);
-            for (let i = 0; i < branchCount; i++) {
-                const branchGeometry = new THREE.CylinderGeometry(0.05, 0.15, 2 + Math.random() * 2, 6);
-                const branch = new THREE.Mesh(branchGeometry, trunkMaterial);
-                branch.position.y = trunkHeight * 0.5 + Math.random() * trunkHeight * 0.4;
-                branch.position.x = (Math.random() - 0.5) * 0.5;
-                branch.position.z = (Math.random() - 0.5) * 0.5;
-                branch.rotation.z = (Math.random() - 0.5) * 1.5;
-                branch.rotation.x = (Math.random() - 0.5) * 1.5;
+            // Arms
+            if (Math.random() > 0.3) {
+                const armHeight = 1 + Math.random();
+                const armGeometry = new THREE.CylinderGeometry(0.12, 0.15, armHeight, 6);
+
+                const arm1 = new THREE.Mesh(armGeometry, cactusMaterial);
+                arm1.position.set(0.4, height * 0.6, 0);
+                arm1.rotation.z = -Math.PI / 4;
+                arm1.castShadow = true;
+                group.add(arm1);
+
+                if (Math.random() > 0.5) {
+                    const arm2 = new THREE.Mesh(armGeometry, cactusMaterial);
+                    arm2.position.set(-0.4, height * 0.5, 0);
+                    arm2.rotation.z = Math.PI / 4;
+                    arm2.castShadow = true;
+                    group.add(arm2);
+                }
+            }
+
+            group.position.set(x, 0, z);
+            return group;
+        }
+
+        function createDeadTree(x, z) {
+            const group = new THREE.Group();
+            const woodMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3d2817,
+                roughness: 0.9
+            });
+
+            const height = 3 + Math.random() * 4;
+            const trunkGeometry = new THREE.CylinderGeometry(0.1, 0.3, height, 6);
+            const trunk = new THREE.Mesh(trunkGeometry, woodMaterial);
+            trunk.position.y = height / 2;
+            trunk.rotation.z = (Math.random() - 0.5) * 0.3;
+            trunk.castShadow = true;
+            group.add(trunk);
+
+            // Dead branches
+            for (let i = 0; i < 3 + Math.random() * 3; i++) {
+                const branchLength = 0.5 + Math.random() * 1.5;
+                const branchGeometry = new THREE.CylinderGeometry(0.02, 0.06, branchLength, 4);
+                const branch = new THREE.Mesh(branchGeometry, woodMaterial);
+                branch.position.y = height * 0.4 + Math.random() * height * 0.5;
+                branch.position.x = (Math.random() - 0.5) * 0.3;
+                branch.rotation.z = (Math.random() - 0.5) * 2;
+                branch.rotation.x = (Math.random() - 0.5) * 1;
                 branch.castShadow = true;
                 group.add(branch);
             }
 
-            // Dead leaves/canopy (sparse)
-            if (Math.random() > 0.3) {
-                const canopyGeometry = new THREE.SphereGeometry(1.5 + Math.random(), 8, 6);
-                const canopyMaterial = new THREE.MeshStandardMaterial({
-                    color: 0x1a2a1a,
-                    roughness: 1,
-                    transparent: true,
-                    opacity: 0.8
-                });
-                const canopy = new THREE.Mesh(canopyGeometry, canopyMaterial);
-                canopy.position.y = trunkHeight - 1;
-                canopy.scale.y = 0.6;
-                group.add(canopy);
-            }
-
             group.position.set(x, 0, z);
-            group.rotation.y = Math.random() * Math.PI * 2;
-
             return group;
         }
 
-        // Generate forest
-        const FOREST_RADIUS = 80;
-        const TREE_COUNT = 400;
+        function createRock(x, z) {
+            const group = new THREE.Group();
+            const rockMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4a4035,
+                roughness: 0.95
+            });
 
-        for (let i = 0; i < TREE_COUNT; i++) {
+            const size = 0.5 + Math.random() * 1.5;
+            const rockGeometry = new THREE.DodecahedronGeometry(size, 0);
+            const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+            rock.position.y = size * 0.4;
+            rock.rotation.set(Math.random(), Math.random(), Math.random());
+            rock.scale.y = 0.6;
+            rock.castShadow = true;
+            group.add(rock);
+
+            // Smaller rocks around
+            for (let i = 0; i < Math.random() * 3; i++) {
+                const smallSize = 0.2 + Math.random() * 0.4;
+                const smallRock = new THREE.Mesh(
+                    new THREE.DodecahedronGeometry(smallSize, 0),
+                    rockMaterial
+                );
+                smallRock.position.set(
+                    (Math.random() - 0.5) * 2,
+                    smallSize * 0.3,
+                    (Math.random() - 0.5) * 2
+                );
+                smallRock.rotation.set(Math.random(), Math.random(), Math.random());
+                group.add(smallRock);
+            }
+
+            group.position.set(x, 0, z);
+            return group;
+        }
+
+        function createSkull(x, z) {
+            const group = new THREE.Group();
+            const boneMaterial = new THREE.MeshStandardMaterial({
+                color: 0xd4c9a8,
+                roughness: 0.7
+            });
+
+            // Skull
+            const skullGeometry = new THREE.SphereGeometry(0.15, 8, 6);
+            const skull = new THREE.Mesh(skullGeometry, boneMaterial);
+            skull.scale.set(1, 0.9, 1.1);
+            skull.position.y = 0.1;
+            skull.rotation.x = -0.3;
+            group.add(skull);
+
+            // Eye sockets (dark)
+            const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const eyeGeometry = new THREE.SphereGeometry(0.03, 6, 6);
+            const eye1 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye1.position.set(0.04, 0.12, 0.12);
+            group.add(eye1);
+            const eye2 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye2.position.set(-0.04, 0.12, 0.12);
+            group.add(eye2);
+
+            group.position.set(x, 0, z);
+            group.rotation.y = Math.random() * Math.PI * 2;
+            return group;
+        }
+
+        // Generate desert environment
+        const DESERT_RADIUS = 90;
+        const OBSTACLE_COUNT = 300;
+
+        for (let i = 0; i < OBSTACLE_COUNT; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const radius = 10 + Math.random() * (FOREST_RADIUS - 10);
+            const radius = 8 + Math.random() * (DESERT_RADIUS - 8);
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
 
-            // Check minimum distance from other trees
             let tooClose = false;
-            for (const pos of treePositions) {
+            for (const pos of obstaclePositions) {
                 const dist = Math.sqrt((x - pos.x) ** 2 + (z - pos.z) ** 2);
-                if (dist < 2) {
+                if (dist < 3) {
                     tooClose = true;
                     break;
                 }
             }
 
             if (!tooClose) {
-                const tree = createTree(x, z);
-                trees.push(tree);
-                treePositions.push({ x, z, radius: 0.5 });
-                scene.add(tree);
+                const type = Math.random();
+                let obstacle;
+                let collisionRadius = 0.5;
+
+                if (type < 0.25) {
+                    obstacle = createCactus(x, z);
+                    collisionRadius = 0.4;
+                } else if (type < 0.5) {
+                    obstacle = createDeadTree(x, z);
+                    collisionRadius = 0.4;
+                } else if (type < 0.85) {
+                    obstacle = createRock(x, z);
+                    collisionRadius = 1;
+                } else {
+                    obstacle = createSkull(x, z);
+                    collisionRadius = 0.2;
+                }
+
+                obstacles.push(obstacle);
+                obstaclePositions.push({ x, z, radius: collisionRadius });
+                scene.add(obstacle);
             }
         }
 
         // Bodies
         const bodies = [];
         const bodyPositions = [
-            { x: 30, z: 30 },
-            { x: -40, z: 20 },
-            { x: 25, z: -45 },
-            { x: -35, z: -35 }
+            { x: 35, z: 35 },
+            { x: -45, z: 25 },
+            { x: 30, z: -50 },
+            { x: -40, z: -40 }
         ];
 
         function createBody(x, z) {
             const group = new THREE.Group();
 
-            // Torso
-            const torsoGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.8);
             const bodyMaterial = new THREE.MeshStandardMaterial({
-                color: 0x3a3a4a,
+                color: 0x4a4a5a,
                 roughness: 0.8
             });
+
+            // Torso
+            const torsoGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.8);
             const torso = new THREE.Mesh(torsoGeometry, bodyMaterial);
             torso.position.y = 0.15;
             group.add(torso);
@@ -687,7 +1025,7 @@
         });
 
         // Exit zone
-        const exitPosition = { x: 0, z: -FOREST_RADIUS - 5 };
+        const exitPosition = { x: 0, z: -DESERT_RADIUS - 5 };
         const exitGeometry = new THREE.BoxGeometry(10, 0.1, 10);
         const exitMaterial = new THREE.MeshStandardMaterial({
             color: 0x2a4a2a,
@@ -698,18 +1036,9 @@
         exitZone.position.set(exitPosition.x, 0.05, exitPosition.z);
         scene.add(exitZone);
 
-        // Exit marker posts
-        for (let i = 0; i < 2; i++) {
-            const postGeometry = new THREE.CylinderGeometry(0.1, 0.1, 3, 8);
-            const postMaterial = new THREE.MeshStandardMaterial({ color: 0x4a3a2a });
-            const post = new THREE.Mesh(postGeometry, postMaterial);
-            post.position.set(exitPosition.x + (i === 0 ? -5 : 5), 1.5, exitPosition.z + 5);
-            scene.add(post);
-        }
-
-        // THE CREATURE
+        // THE CREATURE - More terrifying
         let creature;
-        let creatureState = 'search'; // 'search', 'attack', 'flee'
+        let creatureState = 'search';
         let creatureTarget = new THREE.Vector3();
         let creatureFleeTimer = 0;
         let lastSeenPlayer = new THREE.Vector3();
@@ -720,80 +1049,113 @@
 
             const creatureMaterial = new THREE.MeshStandardMaterial({
                 color: 0x1a1a1a,
-                roughness: 0.7,
-                metalness: 0.2
+                roughness: 0.6,
+                metalness: 0.3
             });
 
-            // Tall thin body
-            const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.5, 4, 8);
+            const fleshMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3a1515,
+                roughness: 0.5
+            });
+
+            // Tall thin body - taller and more disturbing
+            const bodyGeometry = new THREE.CylinderGeometry(0.25, 0.4, 5, 8);
             const body = new THREE.Mesh(bodyGeometry, creatureMaterial);
-            body.position.y = 3;
+            body.position.y = 3.5;
             group.add(body);
 
-            // Hunched upper body
-            const upperGeometry = new THREE.SphereGeometry(0.6, 8, 6);
+            // Hunched upper body - twisted
+            const upperGeometry = new THREE.SphereGeometry(0.7, 8, 6);
             const upper = new THREE.Mesh(upperGeometry, creatureMaterial);
-            upper.position.y = 5.2;
-            upper.scale.set(1, 1.3, 0.8);
+            upper.position.y = 6.3;
+            upper.scale.set(1, 1.4, 0.7);
             group.add(upper);
 
-            // Head - elongated and wrong
-            const headGeometry = new THREE.SphereGeometry(0.4, 8, 6);
-            const head = new THREE.Mesh(headGeometry, creatureMaterial);
-            head.position.set(0, 5.8, 0.3);
-            head.scale.set(0.8, 1.2, 1);
+            // Head - elongated, wrong proportions
+            const headGeometry = new THREE.SphereGeometry(0.5, 8, 6);
+            const head = new THREE.Mesh(headGeometry, fleshMaterial);
+            head.position.set(0, 7.2, 0.4);
+            head.scale.set(0.7, 1.4, 1);
             group.add(head);
 
-            // Eyes - glowing
-            const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xaa2222 });
-            const eyeGeometry = new THREE.SphereGeometry(0.08, 6, 6);
+            // Distorted face features
+            const mouthGeometry = new THREE.BoxGeometry(0.3, 0.5, 0.2);
+            const mouth = new THREE.Mesh(mouthGeometry, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+            mouth.position.set(0, 6.9, 0.8);
+            group.add(mouth);
+
+            // Eyes - glowing, wrong placement
+            const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+            const eyeGeometry = new THREE.SphereGeometry(0.1, 6, 6);
 
             const eye1 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            eye1.position.set(0.12, 5.9, 0.6);
+            eye1.position.set(0.18, 7.3, 0.75);
             group.add(eye1);
 
             const eye2 = new THREE.Mesh(eyeGeometry, eyeMaterial);
-            eye2.position.set(-0.12, 5.9, 0.6);
+            eye2.position.set(-0.18, 7.4, 0.75);
             group.add(eye2);
 
-            // Long arms
-            const armGeometry = new THREE.CylinderGeometry(0.08, 0.12, 3, 6);
+            // Third eye
+            const eye3 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            eye3.position.set(0, 7.6, 0.7);
+            eye3.scale.set(0.7, 0.7, 0.7);
+            group.add(eye3);
+
+            // Unnaturally long arms
+            const armGeometry = new THREE.CylinderGeometry(0.06, 0.1, 4, 6);
 
             const arm1 = new THREE.Mesh(armGeometry, creatureMaterial);
-            arm1.position.set(0.7, 4, 0);
-            arm1.rotation.z = -0.3;
-            arm1.rotation.x = 0.2;
+            arm1.position.set(0.8, 4.5, 0);
+            arm1.rotation.z = -0.2;
+            arm1.rotation.x = 0.3;
             group.add(arm1);
 
             const arm2 = new THREE.Mesh(armGeometry, creatureMaterial);
-            arm2.position.set(-0.7, 4, 0);
-            arm2.rotation.z = 0.3;
-            arm2.rotation.x = 0.2;
+            arm2.position.set(-0.8, 4.5, 0);
+            arm2.rotation.z = 0.2;
+            arm2.rotation.x = 0.3;
             group.add(arm2);
 
-            // Claws/hands
-            const clawGeometry = new THREE.ConeGeometry(0.15, 0.4, 6);
+            // Long fingers/claws
+            for (let i = 0; i < 2; i++) {
+                const side = i === 0 ? 1 : -1;
+                for (let j = 0; j < 4; j++) {
+                    const fingerGeometry = new THREE.ConeGeometry(0.03, 0.4, 4);
+                    const finger = new THREE.Mesh(fingerGeometry, creatureMaterial);
+                    finger.position.set(
+                        side * 1.1 + (j - 1.5) * 0.08 * side,
+                        2.3,
+                        0.5
+                    );
+                    finger.rotation.x = Math.PI * 0.8;
+                    group.add(finger);
+                }
+            }
 
-            const claw1 = new THREE.Mesh(clawGeometry, creatureMaterial);
-            claw1.position.set(1, 2.6, 0.3);
-            claw1.rotation.x = Math.PI;
-            group.add(claw1);
+            // Thin legs with backward knees
+            const upperLegGeometry = new THREE.CylinderGeometry(0.1, 0.12, 1.5, 6);
+            const lowerLegGeometry = new THREE.CylinderGeometry(0.08, 0.1, 1.5, 6);
 
-            const claw2 = new THREE.Mesh(clawGeometry, creatureMaterial);
-            claw2.position.set(-1, 2.6, 0.3);
-            claw2.rotation.x = Math.PI;
-            group.add(claw2);
+            const leg1Upper = new THREE.Mesh(upperLegGeometry, creatureMaterial);
+            leg1Upper.position.set(0.25, 1.2, -0.2);
+            leg1Upper.rotation.x = 0.3;
+            group.add(leg1Upper);
 
-            // Thin legs
-            const legGeometry = new THREE.CylinderGeometry(0.1, 0.15, 2, 6);
+            const leg1Lower = new THREE.Mesh(lowerLegGeometry, creatureMaterial);
+            leg1Lower.position.set(0.25, 0.3, 0.3);
+            leg1Lower.rotation.x = -0.5;
+            group.add(leg1Lower);
 
-            const leg1 = new THREE.Mesh(legGeometry, creatureMaterial);
-            leg1.position.set(0.25, 1, 0);
-            group.add(leg1);
+            const leg2Upper = new THREE.Mesh(upperLegGeometry, creatureMaterial);
+            leg2Upper.position.set(-0.25, 1.2, -0.2);
+            leg2Upper.rotation.x = 0.3;
+            group.add(leg2Upper);
 
-            const leg2 = new THREE.Mesh(legGeometry, creatureMaterial);
-            leg2.position.set(-0.25, 1, 0);
-            group.add(leg2);
+            const leg2Lower = new THREE.Mesh(lowerLegGeometry, creatureMaterial);
+            leg2Lower.position.set(-0.25, 0.3, 0.3);
+            leg2Lower.rotation.x = -0.5;
+            group.add(leg2Lower);
 
             // Spawn far from player
             const spawnAngle = Math.random() * Math.PI * 2;
@@ -812,26 +1174,279 @@
         creature = createCreature();
         scene.add(creature);
 
-        // Fog particles
-        const fogParticles = [];
-        const fogGeometry = new THREE.SphereGeometry(0.5, 4, 4);
-        const fogMaterial = new THREE.MeshBasicMaterial({
-            color: 0x222233,
+        // Dust particles
+        const dustParticles = [];
+        const dustGeometry = new THREE.SphereGeometry(0.3, 4, 4);
+        const dustMaterial = new THREE.MeshBasicMaterial({
+            color: 0x8B7355,
             transparent: true,
-            opacity: 0.1
+            opacity: 0.08
         });
 
-        for (let i = 0; i < 100; i++) {
-            const fog = new THREE.Mesh(fogGeometry, fogMaterial);
-            fog.position.set(
-                (Math.random() - 0.5) * 150,
-                Math.random() * 3,
-                (Math.random() - 0.5) * 150
+        for (let i = 0; i < 80; i++) {
+            const dust = new THREE.Mesh(dustGeometry, dustMaterial.clone());
+            dust.position.set(
+                (Math.random() - 0.5) * 180,
+                Math.random() * 4,
+                (Math.random() - 0.5) * 180
             );
-            fog.userData.speed = 0.2 + Math.random() * 0.3;
-            fog.userData.offset = Math.random() * Math.PI * 2;
-            fogParticles.push(fog);
-            scene.add(fog);
+            dust.userData.speed = 0.3 + Math.random() * 0.5;
+            dust.userData.offset = Math.random() * Math.PI * 2;
+            dustParticles.push(dust);
+            scene.add(dust);
+        }
+
+        // ============ JUMPSCARE SYSTEM ============
+        function drawCreatureFace(canvas) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const scale = Math.min(canvas.width, canvas.height) / 400;
+
+            // Dark background
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Face outline - distorted oval
+            ctx.save();
+            ctx.translate(centerX, centerY);
+
+            // Main face - dark grayish skin
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 200 * scale);
+            gradient.addColorStop(0, '#2a1a1a');
+            gradient.addColorStop(0.7, '#1a0a0a');
+            gradient.addColorStop(1, '#000');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 180 * scale, 250 * scale, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Sunken cheeks
+            ctx.fillStyle = '#0a0505';
+            ctx.beginPath();
+            ctx.ellipse(-80 * scale, 30 * scale, 40 * scale, 60 * scale, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(80 * scale, 30 * scale, 40 * scale, 60 * scale, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eyes - large, glowing, wrong
+            const eyeGlow = ctx.createRadialGradient(-60 * scale, -40 * scale, 0, -60 * scale, -40 * scale, 50 * scale);
+            eyeGlow.addColorStop(0, '#ff0000');
+            eyeGlow.addColorStop(0.3, '#aa0000');
+            eyeGlow.addColorStop(0.7, '#550000');
+            eyeGlow.addColorStop(1, 'transparent');
+
+            ctx.fillStyle = eyeGlow;
+            ctx.beginPath();
+            ctx.ellipse(-60 * scale, -40 * scale, 50 * scale, 50 * scale, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const eyeGlow2 = ctx.createRadialGradient(60 * scale, -50 * scale, 0, 60 * scale, -50 * scale, 50 * scale);
+            eyeGlow2.addColorStop(0, '#ff0000');
+            eyeGlow2.addColorStop(0.3, '#aa0000');
+            eyeGlow2.addColorStop(0.7, '#550000');
+            eyeGlow2.addColorStop(1, 'transparent');
+
+            ctx.fillStyle = eyeGlow2;
+            ctx.beginPath();
+            ctx.ellipse(60 * scale, -50 * scale, 45 * scale, 50 * scale, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eye sockets - black voids
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(-60 * scale, -40 * scale, 30 * scale, 35 * scale, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(60 * scale, -50 * scale, 28 * scale, 33 * scale, -0.1, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pupils - small, piercing
+            ctx.fillStyle = '#ff0000';
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 20 * scale;
+            ctx.beginPath();
+            ctx.arc(-60 * scale, -40 * scale, 8 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(60 * scale, -50 * scale, 8 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Third eye
+            const thirdEyeGlow = ctx.createRadialGradient(0, -100 * scale, 0, 0, -100 * scale, 35 * scale);
+            thirdEyeGlow.addColorStop(0, '#ff0000');
+            thirdEyeGlow.addColorStop(0.5, '#660000');
+            thirdEyeGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = thirdEyeGlow;
+            ctx.beginPath();
+            ctx.arc(0, -100 * scale, 35 * scale, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(0, -100 * scale, 18 * scale, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#ff0000';
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 15 * scale;
+            ctx.beginPath();
+            ctx.arc(0, -100 * scale, 5 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Mouth - wide, gaping, wrong
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(0, 80 * scale, 100 * scale, 70 * scale, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Teeth - jagged, broken
+            ctx.fillStyle = '#d4c9a8';
+            for (let i = 0; i < 12; i++) {
+                const angle = (i / 12) * Math.PI + Math.PI;
+                const x = Math.cos(angle) * 85 * scale;
+                const y = 80 * scale + Math.sin(angle) * 55 * scale;
+                const height = 15 + Math.random() * 25;
+                const width = 8 + Math.random() * 8;
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle + Math.PI / 2 + (Math.random() - 0.5) * 0.3);
+                ctx.beginPath();
+                ctx.moveTo(-width * scale / 2, 0);
+                ctx.lineTo(0, -height * scale);
+                ctx.lineTo(width * scale / 2, 0);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Bottom teeth
+            for (let i = 0; i < 10; i++) {
+                const angle = (i / 10) * Math.PI;
+                const x = Math.cos(angle) * 80 * scale;
+                const y = 80 * scale + Math.sin(angle) * 50 * scale;
+                const height = 12 + Math.random() * 20;
+                const width = 6 + Math.random() * 6;
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle - Math.PI / 2 + (Math.random() - 0.5) * 0.4);
+                ctx.beginPath();
+                ctx.moveTo(-width * scale / 2, 0);
+                ctx.lineTo(0, height * scale);
+                ctx.lineTo(width * scale / 2, 0);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Dripping blood/darkness from mouth
+            ctx.fillStyle = '#1a0000';
+            for (let i = 0; i < 8; i++) {
+                const x = (i - 3.5) * 25 * scale;
+                const dripLength = 30 + Math.random() * 60;
+                ctx.beginPath();
+                ctx.ellipse(x, 140 * scale + dripLength * scale / 2, 4 * scale, dripLength * scale / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Veins/cracks on face
+            ctx.strokeStyle = '#3a1515';
+            ctx.lineWidth = 2 * scale;
+            for (let i = 0; i < 15; i++) {
+                const startX = (Math.random() - 0.5) * 300 * scale;
+                const startY = (Math.random() - 0.5) * 400 * scale;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                let x = startX, y = startY;
+                for (let j = 0; j < 5; j++) {
+                    x += (Math.random() - 0.5) * 40 * scale;
+                    y += (Math.random() - 0.5) * 40 * scale;
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function drawStatic(canvas) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const imageData = ctx.createImageData(canvas.width, canvas.height);
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const v = Math.random() * 255;
+                data[i] = v;
+                data[i + 1] = v * 0.8;
+                data[i + 2] = v * 0.8;
+                data[i + 3] = Math.random() * 100;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        let jumpscareInterval;
+        let staticInterval;
+
+        function triggerJumpscare() {
+            gameState = GAME_STATE.JUMPSCARE;
+
+            const container = document.getElementById('jumpscareContainer');
+            const faceCanvas = document.getElementById('jumpscareFace');
+            const staticCanvas = document.getElementById('jumpscareStatic');
+            const chromatic = document.getElementById('chromatic');
+            const bloodOverlay = document.getElementById('bloodOverlay');
+
+            container.style.display = 'block';
+            container.classList.add('jumpscare-active');
+            chromatic.classList.add('chromatic-active');
+            bloodOverlay.style.opacity = '1';
+
+            // Draw the terrifying face
+            drawCreatureFace(faceCanvas);
+
+            // Static effect
+            staticInterval = setInterval(() => {
+                drawStatic(staticCanvas);
+            }, 50);
+
+            // Redraw face with slight variations for extra horror
+            jumpscareInterval = setInterval(() => {
+                faceCanvas.getContext('2d').save();
+                faceCanvas.getContext('2d').translate(
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20
+                );
+                drawCreatureFace(faceCanvas);
+                faceCanvas.getContext('2d').restore();
+            }, 100);
+
+            // Play the horrifying sound
+            playJumpscareSound();
+
+            // End jumpscare after delay
+            setTimeout(() => {
+                clearInterval(jumpscareInterval);
+                clearInterval(staticInterval);
+                container.style.display = 'none';
+                container.classList.remove('jumpscare-active');
+                chromatic.classList.remove('chromatic-active');
+                bloodOverlay.style.opacity = '0';
+
+                gameState = GAME_STATE.DEAD;
+                document.exitPointerLock();
+                document.getElementById('gameOverScreen').style.display = 'flex';
+            }, 2500);
         }
 
         // Player movement
@@ -844,7 +1459,7 @@
             keys[e.key.toLowerCase()] = true;
             if (e.key.toLowerCase() === 'f' && gameState === GAME_STATE.PLAYING) {
                 flashlightOn = !flashlightOn;
-                flashlight.intensity = flashlightOn ? 2 : 0;
+                flashlight.intensity = flashlightOn ? 2.5 : 0;
             }
         });
 
@@ -864,11 +1479,11 @@
         document.addEventListener('mousedown', (e) => {
             if (gameState !== GAME_STATE.PLAYING) return;
 
-            if (e.button === 2) { // Right click
+            if (e.button === 2) {
                 isCameraUp = true;
                 document.getElementById('cameraViewfinder').style.display = 'block';
                 document.getElementById('crosshair').style.display = 'none';
-            } else if (e.button === 0 && isCameraUp && canTakePhoto) { // Left click while camera is up
+            } else if (e.button === 0 && isCameraUp && canTakePhoto) {
                 takePhoto();
             }
         });
@@ -889,7 +1504,6 @@
 
             playCameraSound();
 
-            // Flash effect
             const flash = document.getElementById('flashEffect');
             flash.style.opacity = '1';
             setTimeout(() => { flash.style.opacity = '0'; }, 100);
@@ -905,25 +1519,22 @@
 
             const dot = cameraDir.dot(creatureDir);
 
-            // If creature is in front and within range
             if (dot > 0.7 && distance < 25) {
-                // Creature was photographed! It flees
                 creatureState = 'flee';
-                creatureFleeTimer = 8 + Math.random() * 4;
+                creatureFleeTimer = 10 + Math.random() * 5;
 
-                // Set flee direction (away from player)
                 const fleeDir = new THREE.Vector3();
                 fleeDir.subVectors(creature.position, camera.position);
                 fleeDir.y = 0;
                 fleeDir.normalize();
                 fleeDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * Math.PI);
 
-                creatureTarget.copy(creature.position).add(fleeDir.multiplyScalar(60));
+                creatureTarget.copy(creature.position).add(fleeDir.multiplyScalar(70));
 
                 playCreatureSound('scream');
             }
 
-            // Check for bodies in view
+            // Check for bodies
             bodies.forEach(body => {
                 if (body.userData.found) return;
 
@@ -939,7 +1550,6 @@
                     bodiesFound++;
                     document.getElementById('bodiesCount').textContent = `BODIES: ${bodiesFound}/4`;
 
-                    // Visual feedback
                     body.children.forEach(child => {
                         if (child.material) {
                             child.material.emissive = new THREE.Color(0x222244);
@@ -963,21 +1573,18 @@
             // Animation
             creature.userData.animTime += delta;
             const animTime = creature.userData.animTime;
-            creature.position.y = Math.sin(animTime * 3) * 0.1;
+            creature.position.y = Math.sin(animTime * 3) * 0.15;
             creature.children.forEach((child, i) => {
-                if (i > 5) { // Arms
-                    child.rotation.x = Math.sin(animTime * 4 + i) * 0.2;
+                if (i > 6) {
+                    child.rotation.x = Math.sin(animTime * 4 + i) * 0.3;
                 }
             });
 
-            // State machine
             switch (creatureState) {
                 case 'search':
-                    // Wander around
                     if (creatureTarget.length() === 0 || creaturePos.distanceTo(creatureTarget) < 3) {
-                        // Pick new random target
                         const angle = Math.random() * Math.PI * 2;
-                        const radius = 20 + Math.random() * 40;
+                        const radius = 20 + Math.random() * 50;
                         creatureTarget.set(
                             Math.cos(angle) * radius,
                             0,
@@ -985,30 +1592,19 @@
                         );
                     }
 
-                    // Move toward target
                     const searchDir = new THREE.Vector3();
                     searchDir.subVectors(creatureTarget, creaturePos);
                     searchDir.y = 0;
                     searchDir.normalize();
 
-                    creature.position.x += searchDir.x * 3 * delta;
-                    creature.position.z += searchDir.z * 3 * delta;
-
-                    // Face direction
+                    creature.position.x += searchDir.x * 3.5 * delta;
+                    creature.position.z += searchDir.z * 3.5 * delta;
                     creature.rotation.y = Math.atan2(searchDir.x, searchDir.z);
 
-                    // Check if player is seen
-                    if (distToPlayer < 30) {
-                        // Raycast to check line of sight
-                        const toPlayer = new THREE.Vector3();
-                        toPlayer.subVectors(playerPos, creaturePos).normalize();
-
-                        // Simple visibility check - if close enough and flashlight on
-                        const isVisible = flashlightOn || distToPlayer < 8;
-
+                    if (distToPlayer < 35) {
+                        const isVisible = flashlightOn || distToPlayer < 10;
                         if (isVisible) {
-                            creatureAlertness += delta * (30 - distToPlayer) * 0.1;
-
+                            creatureAlertness += delta * (35 - distToPlayer) * 0.08;
                             if (creatureAlertness > 1) {
                                 creatureState = 'attack';
                                 playCreatureSound('growl');
@@ -1020,37 +1616,27 @@
                     break;
 
                 case 'attack':
-                    // Chase player
                     const attackDir = new THREE.Vector3();
                     attackDir.subVectors(playerPos, creaturePos);
                     attackDir.y = 0;
                     attackDir.normalize();
 
-                    const attackSpeed = 6 + (isRunning ? 0 : 2);
+                    const attackSpeed = 7 + (isRunning ? 0 : 2.5);
                     creature.position.x += attackDir.x * attackSpeed * delta;
                     creature.position.z += attackDir.z * attackSpeed * delta;
-
                     creature.rotation.y = Math.atan2(attackDir.x, attackDir.z);
 
                     lastSeenPlayer.copy(playerPos);
 
-                    // Attack if close enough
+                    // DEATH - TRIGGER JUMPSCARE
                     if (distToPlayer < 1.5) {
-                        health -= 50 * delta;
-                        document.getElementById('damageEffect').style.opacity = 0.5;
-
-                        if (health <= 0) {
-                            gameState = GAME_STATE.DEAD;
-                            document.exitPointerLock();
-                            document.getElementById('gameOverScreen').style.display = 'flex';
-                        }
-                    } else {
-                        document.getElementById('damageEffect').style.opacity = Math.max(0,
-                            parseFloat(document.getElementById('damageEffect').style.opacity) - delta);
+                        triggerJumpscare();
+                        return;
                     }
 
-                    // Lose player if too far
-                    if (distToPlayer > 50) {
+                    document.getElementById('damageEffect').style.opacity = Math.max(0, 0.3 * (1 - distToPlayer / 10));
+
+                    if (distToPlayer > 55) {
                         creatureState = 'search';
                         creatureAlertness = 0;
                         creatureTarget.copy(lastSeenPlayer);
@@ -1060,15 +1646,14 @@
                 case 'flee':
                     creatureFleeTimer -= delta;
 
-                    // Run away
                     const fleeDir = new THREE.Vector3();
                     fleeDir.subVectors(creatureTarget, creaturePos);
                     fleeDir.y = 0;
 
                     if (fleeDir.length() > 1) {
                         fleeDir.normalize();
-                        creature.position.x += fleeDir.x * 10 * delta;
-                        creature.position.z += fleeDir.z * 10 * delta;
+                        creature.position.x += fleeDir.x * 12 * delta;
+                        creature.position.z += fleeDir.z * 12 * delta;
                         creature.rotation.y = Math.atan2(fleeDir.x, fleeDir.z);
                     }
 
@@ -1079,31 +1664,31 @@
                     break;
             }
 
-            // Keep creature in bounds
+            // Keep in bounds
             const creatureDist = Math.sqrt(creature.position.x ** 2 + creature.position.z ** 2);
-            if (creatureDist > FOREST_RADIUS) {
+            if (creatureDist > DESERT_RADIUS) {
                 const angle = Math.atan2(creature.position.z, creature.position.x);
-                creature.position.x = Math.cos(angle) * FOREST_RADIUS;
-                creature.position.z = Math.sin(angle) * FOREST_RADIUS;
+                creature.position.x = Math.cos(angle) * DESERT_RADIUS;
+                creature.position.z = Math.sin(angle) * DESERT_RADIUS;
             }
 
-            // UI feedback
+            // UI
             const warning = document.getElementById('warning');
             const heartbeat = document.getElementById('heartbeat');
 
             if (creatureState === 'attack') {
-                warning.style.opacity = 0.5 + Math.sin(Date.now() * 0.01) * 0.3;
-                heartbeat.style.opacity = 0.3 + Math.sin(Date.now() * 0.008) * 0.2;
+                warning.style.opacity = 0.6 + Math.sin(Date.now() * 0.015) * 0.4;
+                heartbeat.style.opacity = 0.4 + Math.sin(Date.now() * 0.01) * 0.3;
 
-                if (Math.random() < 0.02) {
+                if (Math.random() < 0.03) {
                     playHeartbeat(1);
                 }
-            } else if (distToPlayer < 20 && creatureState === 'search') {
-                const intensity = 1 - distToPlayer / 20;
-                heartbeat.style.opacity = intensity * 0.2;
+            } else if (distToPlayer < 25 && creatureState === 'search') {
+                const intensity = 1 - distToPlayer / 25;
+                heartbeat.style.opacity = intensity * 0.25;
                 warning.style.opacity = 0;
 
-                if (Math.random() < 0.01 * intensity) {
+                if (Math.random() < 0.015 * intensity) {
                     playHeartbeat(intensity);
                 }
             } else {
@@ -1115,13 +1700,11 @@
         function updatePlayer(delta) {
             if (gameState !== GAME_STATE.PLAYING) return;
 
-            // Apply rotation
             camera.rotation.order = 'YXZ';
             camera.rotation.y = playerYaw;
             camera.rotation.x = playerPitch;
 
-            // Movement
-            const moveSpeed = isRunning ? 6 : 3;
+            const moveSpeed = isRunning ? 5.5 : 3;
             const forward = new THREE.Vector3(0, 0, -1);
             const right = new THREE.Vector3(1, 0, 0);
 
@@ -1145,26 +1728,24 @@
                 isRunning = keys['shift'] && stamina > 0;
 
                 if (isRunning) {
-                    stamina = Math.max(0, stamina - 30 * delta);
+                    stamina = Math.max(0, stamina - 25 * delta);
                 }
 
                 playerVelocity.multiplyScalar(moveSpeed * delta);
 
-                // Collision detection with trees
                 const newPos = camera.position.clone().add(playerVelocity);
                 let canMove = true;
 
-                for (const tree of treePositions) {
-                    const dist = Math.sqrt((newPos.x - tree.x) ** 2 + (newPos.z - tree.z) ** 2);
-                    if (dist < tree.radius + 0.3) {
+                for (const obs of obstaclePositions) {
+                    const dist = Math.sqrt((newPos.x - obs.x) ** 2 + (newPos.z - obs.z) ** 2);
+                    if (dist < obs.radius + 0.3) {
                         canMove = false;
                         break;
                     }
                 }
 
-                // Stay in bounds
                 const playerDist = Math.sqrt(newPos.x ** 2 + newPos.z ** 2);
-                if (playerDist > FOREST_RADIUS + 15) {
+                if (playerDist > DESERT_RADIUS + 15) {
                     canMove = false;
                 }
 
@@ -1175,19 +1756,16 @@
                 isRunning = false;
             }
 
-            // Stamina recovery
             if (!isRunning) {
-                stamina = Math.min(100, stamina + 15 * delta);
+                stamina = Math.min(100, stamina + 12 * delta);
             }
 
             document.getElementById('staminaBar').style.width = stamina + '%';
 
-            // Camera height bob
             if (playerVelocity.length() > 0) {
                 camera.position.y = 1.7 + Math.sin(Date.now() * 0.01 * (isRunning ? 1.5 : 1)) * 0.05;
             }
 
-            // Photo cooldown
             if (!canTakePhoto) {
                 photoTimer -= delta;
                 if (photoTimer <= 0) {
@@ -1195,7 +1773,7 @@
                 }
             }
 
-            // Check exit
+            // Exit check
             const exitDist = Math.sqrt(
                 (camera.position.x - exitPosition.x) ** 2 +
                 (camera.position.z - exitPosition.z) ** 2
@@ -1233,17 +1811,17 @@
                 updatePlayer(delta);
                 updateCreature(delta);
 
-                // Animate fog
-                fogParticles.forEach(fog => {
-                    fog.position.x += Math.sin(currentTime * 0.0005 + fog.userData.offset) * fog.userData.speed * delta;
-                    fog.position.z += Math.cos(currentTime * 0.0003 + fog.userData.offset) * fog.userData.speed * delta;
-                    fog.material.opacity = 0.05 + Math.sin(currentTime * 0.001 + fog.userData.offset) * 0.03;
+                // Dust particles
+                dustParticles.forEach(dust => {
+                    dust.position.x += Math.sin(currentTime * 0.0003 + dust.userData.offset) * dust.userData.speed * delta * 2;
+                    dust.position.z += Math.cos(currentTime * 0.0002 + dust.userData.offset) * dust.userData.speed * delta;
+                    dust.material.opacity = 0.04 + Math.sin(currentTime * 0.001 + dust.userData.offset) * 0.02;
                 });
 
-                // Subtle camera shake when creature is close
+                // Camera shake when creature close
                 const distToCreature = camera.position.distanceTo(creature.position);
                 if (distToCreature < 15) {
-                    const shakeIntensity = (15 - distToCreature) / 15 * 0.003;
+                    const shakeIntensity = (15 - distToCreature) / 15 * 0.004;
                     camera.rotation.x += (Math.random() - 0.5) * shakeIntensity;
                     camera.rotation.y += (Math.random() - 0.5) * shakeIntensity;
                 }
@@ -1262,28 +1840,18 @@
             renderer.domElement.requestPointerLock();
         });
 
-        // Game over screen
         document.getElementById('gameOverScreen').addEventListener('click', () => {
             location.reload();
         });
 
-        // Win screen
         document.getElementById('winScreen').addEventListener('click', () => {
             location.reload();
         });
 
-        // Window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // Pointer lock change
-        document.addEventListener('pointerlockchange', () => {
-            if (document.pointerLockElement !== renderer.domElement && gameState === GAME_STATE.PLAYING) {
-                // Optionally pause game
-            }
         });
 
         animate(0);
