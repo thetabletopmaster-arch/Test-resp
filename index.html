@@ -414,8 +414,7 @@
             WASD - Move<br>
             SHIFT - Run<br>
             MOUSE - Look<br>
-            RIGHT CLICK - Raise Camera<br>
-            LEFT CLICK - Take Photo<br>
+            SPACE - Take Photo<br>
             F - Toggle Flashlight
         </div>
         <p class="click-start">Click to begin</p>
@@ -450,7 +449,7 @@
         </div>
         <div id="bodiesCount">BODIES: 0/4</div>
         <div id="stamina"><div id="staminaBar"></div></div>
-        <div id="photoIndicator">[RMB] Camera</div>
+        <div id="photoIndicator">[SPACE] Photo</div>
         <div id="compass">N</div>
         <div id="exitMarker">EXIT NEARBY</div>
         <div id="flashEffect"></div>
@@ -622,110 +621,263 @@
             }
         }
 
-        // JUMPSCARE AUDIO - TERRIFYING
+        // JUMPSCARE AUDIO - ABSOLUTELY HORRIFYING
         function playJumpscareSound() {
             if (!audioContext) return;
 
-            // Layer 1: Deep demonic roar
-            const roar = audioContext.createOscillator();
-            const roarGain = audioContext.createGain();
-            const roarFilter = audioContext.createBiquadFilter();
-            roar.type = 'sawtooth';
-            roar.frequency.setValueAtTime(60, audioContext.currentTime);
-            roar.frequency.linearRampToValueAtTime(30, audioContext.currentTime + 1);
-            roarFilter.type = 'lowpass';
-            roarFilter.frequency.value = 200;
-            roarGain.gain.setValueAtTime(1, audioContext.currentTime);
-            roarGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1.5);
-            roar.connect(roarFilter);
-            roarFilter.connect(roarGain);
-            roarGain.connect(audioContext.destination);
-            roar.start();
-            roar.stop(audioContext.currentTime + 1.5);
+            const t = audioContext.currentTime;
 
-            // Layer 2: High pitched shriek
+            // LAYER 1: Massive distorted sub-bass impact that shakes your soul
+            const subImpact = audioContext.createOscillator();
+            const subGain = audioContext.createGain();
+            const subDist = audioContext.createWaveShaper();
+            subImpact.type = 'sine';
+            subImpact.frequency.setValueAtTime(30, t);
+            subImpact.frequency.exponentialRampToValueAtTime(15, t + 0.5);
+            const curve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) curve[i] = Math.tanh((i / 128 - 1) * 5);
+            subDist.curve = curve;
+            subGain.gain.setValueAtTime(1.5, t);
+            subGain.gain.linearRampToValueAtTime(0.3, t + 2);
+            subImpact.connect(subDist);
+            subDist.connect(subGain);
+            subGain.connect(audioContext.destination);
+            subImpact.start(t);
+            subImpact.stop(t + 2.5);
+
+            // LAYER 2: Inhuman scream - multiple detuned oscillators
+            for (let s = 0; s < 5; s++) {
+                const scream = audioContext.createOscillator();
+                const screamGain = audioContext.createGain();
+                const screamFilter = audioContext.createBiquadFilter();
+                scream.type = 'sawtooth';
+                const baseFreq = 400 + s * 150;
+                scream.frequency.setValueAtTime(baseFreq, t);
+                scream.frequency.exponentialRampToValueAtTime(baseFreq * 3, t + 0.05);
+                scream.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, t + 0.4);
+                scream.frequency.setValueAtTime(baseFreq * 2, t + 0.5);
+                scream.frequency.exponentialRampToValueAtTime(baseFreq * 0.3, t + 1.5);
+                screamFilter.type = 'bandpass';
+                screamFilter.frequency.value = 800 + s * 200;
+                screamFilter.Q.value = 3;
+                screamGain.gain.setValueAtTime(0.6, t);
+                screamGain.gain.linearRampToValueAtTime(0.3, t + 0.5);
+                screamGain.gain.linearRampToValueAtTime(0, t + 2);
+                scream.connect(screamFilter);
+                screamFilter.connect(screamGain);
+                screamGain.connect(audioContext.destination);
+                scream.start(t + s * 0.02);
+                scream.stop(t + 2);
+            }
+
+            // LAYER 3: Demonic growl - ultra low frequency rumble
+            const growl = audioContext.createOscillator();
+            const growl2 = audioContext.createOscillator();
+            const growlGain = audioContext.createGain();
+            const growlFilter = audioContext.createBiquadFilter();
+            growl.type = 'sawtooth';
+            growl2.type = 'square';
+            growl.frequency.setValueAtTime(50, t);
+            growl.frequency.linearRampToValueAtTime(25, t + 2);
+            growl2.frequency.setValueAtTime(52, t);
+            growl2.frequency.linearRampToValueAtTime(23, t + 2);
+            growlFilter.type = 'lowpass';
+            growlFilter.frequency.value = 150;
+            growlGain.gain.setValueAtTime(0.8, t);
+            growlGain.gain.linearRampToValueAtTime(0, t + 2.5);
+            growl.connect(growlFilter);
+            growl2.connect(growlFilter);
+            growlFilter.connect(growlGain);
+            growlGain.connect(audioContext.destination);
+            growl.start(t);
+            growl2.start(t);
+            growl.stop(t + 2.5);
+            growl2.stop(t + 2.5);
+
+            // LAYER 4: Metallic grinding flesh-tearing sound
+            const grindBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 2, audioContext.sampleRate);
+            const grindData = grindBuffer.getChannelData(0);
+            for (let i = 0; i < grindData.length; i++) {
+                const progress = i / grindData.length;
+                grindData[i] = (Math.random() * 2 - 1) * Math.sin(i * 0.01) * Math.sin(i * 0.1) * (1 - progress * 0.5);
+            }
+            const grind = audioContext.createBufferSource();
+            grind.buffer = grindBuffer;
+            const grindGain = audioContext.createGain();
+            const grindFilter = audioContext.createBiquadFilter();
+            grindFilter.type = 'bandpass';
+            grindFilter.frequency.value = 2000;
+            grindFilter.Q.value = 5;
+            grindGain.gain.setValueAtTime(0.5, t);
+            grindGain.gain.linearRampToValueAtTime(0, t + 2);
+            grind.connect(grindFilter);
+            grindFilter.connect(grindGain);
+            grindGain.connect(audioContext.destination);
+            grind.start(t);
+
+            // LAYER 5: Piercing shriek that cuts through everything
             const shriek = audioContext.createOscillator();
             const shriekGain = audioContext.createGain();
             shriek.type = 'square';
-            shriek.frequency.setValueAtTime(800, audioContext.currentTime);
-            shriek.frequency.exponentialRampToValueAtTime(2000, audioContext.currentTime + 0.1);
-            shriek.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.5);
-            shriekGain.gain.setValueAtTime(0.8, audioContext.currentTime);
-            shriekGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.8);
+            shriek.frequency.setValueAtTime(2500, t);
+            shriek.frequency.exponentialRampToValueAtTime(4000, t + 0.02);
+            shriek.frequency.exponentialRampToValueAtTime(1500, t + 0.3);
+            shriek.frequency.setValueAtTime(3500, t + 0.5);
+            shriek.frequency.linearRampToValueAtTime(800, t + 1.5);
+            shriekGain.gain.setValueAtTime(0.7, t);
+            shriekGain.gain.linearRampToValueAtTime(0.2, t + 0.3);
+            shriekGain.gain.linearRampToValueAtTime(0, t + 1.5);
             shriek.connect(shriekGain);
             shriekGain.connect(audioContext.destination);
-            shriek.start();
-            shriek.stop(audioContext.currentTime + 0.8);
+            shriek.start(t);
+            shriek.stop(t + 1.5);
 
-            // Layer 3: Distorted noise burst
-            const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 1.5, audioContext.sampleRate);
-            const noiseData = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < noiseData.length; i++) {
-                noiseData[i] = (Math.random() * 2 - 1) * (1 - i / noiseData.length);
+            // LAYER 6: Wet choking/gurgling sound
+            const gurgBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 2, audioContext.sampleRate);
+            const gurgData = gurgBuffer.getChannelData(0);
+            for (let i = 0; i < gurgData.length; i++) {
+                const freq = 80 + Math.sin(i * 0.002) * 40;
+                gurgData[i] = Math.sin(i * freq / audioContext.sampleRate * Math.PI * 2) *
+                              (Math.random() * 0.5 + 0.5) *
+                              Math.sin(i * 0.0001) *
+                              (1 - i / gurgData.length);
             }
-            const noise = audioContext.createBufferSource();
-            noise.buffer = noiseBuffer;
-            const noiseGain = audioContext.createGain();
-            const noiseFilter = audioContext.createBiquadFilter();
-            noiseFilter.type = 'bandpass';
-            noiseFilter.frequency.value = 1000;
-            noiseFilter.Q.value = 1;
-            noiseGain.gain.setValueAtTime(0.7, audioContext.currentTime);
-            noiseGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1.2);
-            noise.connect(noiseFilter);
-            noiseFilter.connect(noiseGain);
-            noiseGain.connect(audioContext.destination);
-            noise.start();
+            const gurgle = audioContext.createBufferSource();
+            gurgle.buffer = gurgBuffer;
+            const gurgGain = audioContext.createGain();
+            const gurgFilter = audioContext.createBiquadFilter();
+            gurgFilter.type = 'bandpass';
+            gurgFilter.frequency.value = 400;
+            gurgFilter.Q.value = 8;
+            gurgGain.gain.setValueAtTime(0.6, t);
+            gurgGain.gain.linearRampToValueAtTime(0, t + 2);
+            gurgle.connect(gurgFilter);
+            gurgFilter.connect(gurgGain);
+            gurgGain.connect(audioContext.destination);
+            gurgle.start(t);
 
-            // Layer 4: Sub bass hit
-            const sub = audioContext.createOscillator();
-            const subGain = audioContext.createGain();
-            sub.type = 'sine';
-            sub.frequency.value = 25;
-            subGain.gain.setValueAtTime(1, audioContext.currentTime);
-            subGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
-            sub.connect(subGain);
-            subGain.connect(audioContext.destination);
-            sub.start();
-            sub.stop(audioContext.currentTime + 1);
-
-            // Layer 5: Metallic screech
-            const screech = audioContext.createOscillator();
-            const screechGain = audioContext.createGain();
-            const screechFilter = audioContext.createBiquadFilter();
-            screech.type = 'sawtooth';
-            screech.frequency.setValueAtTime(3000, audioContext.currentTime);
-            screech.frequency.linearRampToValueAtTime(1500, audioContext.currentTime + 0.3);
-            screechFilter.type = 'highpass';
-            screechFilter.frequency.value = 1000;
-            screechGain.gain.setValueAtTime(0.4, audioContext.currentTime);
-            screechGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
-            screech.connect(screechFilter);
-            screechFilter.connect(screechGain);
-            screechGain.connect(audioContext.destination);
-            screech.start();
-            screech.stop(audioContext.currentTime + 0.5);
-
-            // Layer 6: Breath/whisper
-            for (let i = 0; i < 3; i++) {
+            // LAYER 7: Bone-cracking sounds
+            for (let c = 0; c < 8; c++) {
                 setTimeout(() => {
-                    const whisper = audioContext.createOscillator();
-                    const whisperGain = audioContext.createGain();
-                    const whisperFilter = audioContext.createBiquadFilter();
-                    whisper.type = 'sawtooth';
-                    whisper.frequency.value = 100 + Math.random() * 50;
-                    whisperFilter.type = 'bandpass';
-                    whisperFilter.frequency.value = 500;
-                    whisperFilter.Q.value = 10;
-                    whisperGain.gain.setValueAtTime(0.3, audioContext.currentTime);
-                    whisperGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.3);
-                    whisper.connect(whisperFilter);
-                    whisperFilter.connect(whisperGain);
-                    whisperGain.connect(audioContext.destination);
-                    whisper.start();
-                    whisper.stop(audioContext.currentTime + 0.3);
-                }, i * 200);
+                    const crack = audioContext.createOscillator();
+                    const crackGain = audioContext.createGain();
+                    const crackFilter = audioContext.createBiquadFilter();
+                    crack.type = 'square';
+                    crack.frequency.setValueAtTime(150 + Math.random() * 100, audioContext.currentTime);
+                    crack.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.05);
+                    crackFilter.type = 'highpass';
+                    crackFilter.frequency.value = 100;
+                    crackGain.gain.setValueAtTime(0.8, audioContext.currentTime);
+                    crackGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
+                    crack.connect(crackFilter);
+                    crackFilter.connect(crackGain);
+                    crackGain.connect(audioContext.destination);
+                    crack.start();
+                    crack.stop(audioContext.currentTime + 0.1);
+                }, c * 150 + Math.random() * 100);
             }
+
+            // LAYER 8: Distorted breathing/wheezing
+            for (let b = 0; b < 6; b++) {
+                setTimeout(() => {
+                    const breathBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.4, audioContext.sampleRate);
+                    const breathData = breathBuffer.getChannelData(0);
+                    for (let i = 0; i < breathData.length; i++) {
+                        const env = Math.sin(i / breathData.length * Math.PI);
+                        breathData[i] = (Math.random() * 2 - 1) * env * 0.5;
+                    }
+                    const breath = audioContext.createBufferSource();
+                    breath.buffer = breathBuffer;
+                    const breathGain = audioContext.createGain();
+                    const breathFilter = audioContext.createBiquadFilter();
+                    breathFilter.type = 'bandpass';
+                    breathFilter.frequency.value = 600 + Math.random() * 400;
+                    breathFilter.Q.value = 15;
+                    breathGain.gain.setValueAtTime(0.4, audioContext.currentTime);
+                    breath.connect(breathFilter);
+                    breathFilter.connect(breathGain);
+                    breathGain.connect(audioContext.destination);
+                    breath.start();
+                }, b * 300 + Math.random() * 100);
+            }
+
+            // LAYER 9: Hellish reverberating roar
+            const hellRoar = audioContext.createOscillator();
+            const hellRoar2 = audioContext.createOscillator();
+            const hellGain = audioContext.createGain();
+            const hellDist = audioContext.createWaveShaper();
+            const hellCurve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) hellCurve[i] = Math.tanh((i / 128 - 1) * 10) * 0.8;
+            hellDist.curve = hellCurve;
+            hellRoar.type = 'sawtooth';
+            hellRoar2.type = 'sawtooth';
+            hellRoar.frequency.setValueAtTime(80, t);
+            hellRoar.frequency.linearRampToValueAtTime(40, t + 2);
+            hellRoar2.frequency.setValueAtTime(81, t);
+            hellRoar2.frequency.linearRampToValueAtTime(39, t + 2);
+            hellGain.gain.setValueAtTime(0.5, t);
+            hellGain.gain.linearRampToValueAtTime(0, t + 2.5);
+            hellRoar.connect(hellDist);
+            hellRoar2.connect(hellDist);
+            hellDist.connect(hellGain);
+            hellGain.connect(audioContext.destination);
+            hellRoar.start(t);
+            hellRoar2.start(t);
+            hellRoar.stop(t + 2.5);
+            hellRoar2.stop(t + 2.5);
+
+            // LAYER 10: Rapid clicking/chittering
+            for (let cl = 0; cl < 20; cl++) {
+                setTimeout(() => {
+                    const click = audioContext.createOscillator();
+                    const clickGain = audioContext.createGain();
+                    click.type = 'square';
+                    click.frequency.value = 3000 + Math.random() * 2000;
+                    clickGain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    clickGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.02);
+                    click.connect(clickGain);
+                    clickGain.connect(audioContext.destination);
+                    click.start();
+                    click.stop(audioContext.currentTime + 0.03);
+                }, cl * 80 + Math.random() * 40);
+            }
+
+            // LAYER 11: Massive distorted noise wall
+            const wallBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 2.5, audioContext.sampleRate);
+            const wallData = wallBuffer.getChannelData(0);
+            for (let i = 0; i < wallData.length; i++) {
+                const env = 1 - (i / wallData.length) * 0.7;
+                wallData[i] = (Math.random() * 2 - 1) * env;
+            }
+            const wall = audioContext.createBufferSource();
+            wall.buffer = wallBuffer;
+            const wallGain = audioContext.createGain();
+            const wallDist = audioContext.createWaveShaper();
+            const wallCurve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) wallCurve[i] = Math.sign(i / 128 - 1) * Math.pow(Math.abs(i / 128 - 1), 0.3);
+            wallDist.curve = wallCurve;
+            wallGain.gain.setValueAtTime(0.4, t);
+            wallGain.gain.linearRampToValueAtTime(0, t + 2.5);
+            wall.connect(wallDist);
+            wallDist.connect(wallGain);
+            wallGain.connect(audioContext.destination);
+            wall.start(t);
+
+            // LAYER 12: Reverse scream effect (getting louder)
+            const revBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 1, audioContext.sampleRate);
+            const revData = revBuffer.getChannelData(0);
+            for (let i = 0; i < revData.length; i++) {
+                const progress = i / revData.length;
+                const freq = 200 + progress * 800;
+                revData[i] = Math.sin(i * freq / audioContext.sampleRate * Math.PI * 2) * progress * progress;
+            }
+            const reverse = audioContext.createBufferSource();
+            reverse.buffer = revBuffer;
+            const revGain = audioContext.createGain();
+            revGain.gain.setValueAtTime(0.6, t + 0.5);
+            reverse.connect(revGain);
+            revGain.connect(audioContext.destination);
+            reverse.start(t + 0.5);
         }
 
         // Lighting
@@ -1461,6 +1613,10 @@
                 flashlightOn = !flashlightOn;
                 flashlight.intensity = flashlightOn ? 2.5 : 0;
             }
+            if (e.code === 'Space' && gameState === GAME_STATE.PLAYING && canTakePhoto) {
+                e.preventDefault();
+                takePhoto();
+            }
         });
 
         document.addEventListener('keyup', (e) => {
@@ -1474,26 +1630,6 @@
             playerYaw -= e.movementX * 0.002;
             playerPitch -= e.movementY * 0.002;
             playerPitch = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, playerPitch));
-        });
-
-        document.addEventListener('mousedown', (e) => {
-            if (gameState !== GAME_STATE.PLAYING) return;
-
-            if (e.button === 2) {
-                isCameraUp = true;
-                document.getElementById('cameraViewfinder').style.display = 'block';
-                document.getElementById('crosshair').style.display = 'none';
-            } else if (e.button === 0 && isCameraUp && canTakePhoto) {
-                takePhoto();
-            }
-        });
-
-        document.addEventListener('mouseup', (e) => {
-            if (e.button === 2) {
-                isCameraUp = false;
-                document.getElementById('cameraViewfinder').style.display = 'none';
-                document.getElementById('crosshair').style.display = 'block';
-            }
         });
 
         document.addEventListener('contextmenu', (e) => e.preventDefault());
